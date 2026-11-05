@@ -13,12 +13,14 @@ class Settings(BaseSettings):
 
     # --- LLM ---
     gemini_api_key: str | None = Field(default=None, repr=False)
-    llm_model: str = "gemini-3.8-flash"
+    # Chosen with evals/answer_eval.py: same quality as 3.8-flash on our set, lower latency.
+    llm_model: str = "gemini-3.5-flash"
     # Tried in order when the primary model is overloaded / rate-limited (429, 5xx).
-    llm_fallback_models: list[str] = ["gemini-3.5-flash", "gemini-3.1-flash-lite"]
+    llm_fallback_models: list[str] = ["gemini-3.1-flash-lite", "gemini-3.8-flash"]
     llm_temperature: float = 0.2
     llm_timeout_s: float = 60.0
-    # USD per 1M tokens, used only for the cost estimate shown in traces.
+    # USD per 1M tokens, used only for the cost estimate shown in traces. Set these to the
+    # current price of whichever model you run; the defaults are only a rough flash-class estimate.
     llm_price_input_per_m: float = 0.30
     llm_price_output_per_m: float = 2.50
 
