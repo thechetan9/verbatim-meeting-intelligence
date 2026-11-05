@@ -4,6 +4,7 @@ import {
   Activity,
   ChevronDown,
   CircleAlert,
+  CornerDownRight,
   FileSearch,
   ListChecks,
   SearchX,
@@ -18,11 +19,13 @@ import { citationKeyFromHref, linkCitations, trimPartialCitation } from "@/lib/c
 import type { AgentStep, ChatMessage, Citation, Grounding, Trace } from "@/lib/types";
 
 interface Props {
-  message: ChatMessage;
-  onCite: (c: Citation) => void;
+  readonly message: ChatMessage;
+  readonly onCite: (c: Citation) => void;
+  /** Only the latest answer shows follow-up suggestions, to keep the thread calm. */
+  readonly onAsk?: (question: string) => void;
 }
 
-export function AssistantMessage({ message, onCite }: Props) {
+export function AssistantMessage({ message, onCite, onAsk }: Props) {
   const citations = useMemo(() => message.citations ?? [], [message.citations]);
   const byKey = useMemo(() => new Map(citations.map((c, i) => [c.key, { c, n: i + 1 }])), [citations]);
   const streaming = message.status === "streaming";
@@ -75,6 +78,20 @@ export function AssistantMessage({ message, onCite }: Props) {
             {message.grounding && <GroundingBadge grounding={message.grounding} count={citations.length} />}
             {message.trace && <TraceToggle trace={message.trace} />}
           </div>
+          {onAsk && (message.suggestions?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap gap-2 border-t border-border pt-3">
+              {message.suggestions!.map((q) => (
+                <button
+                  key={q}
+                  onClick={() => onAsk(q)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-panel-2/60 px-3 py-1 text-xs text-muted transition hover:border-accent hover:text-accent"
+                >
+                  <CornerDownRight className="h-3 w-3" />
+                  {q}
+                </button>
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>

@@ -62,7 +62,7 @@ export function ChatPanel(p: Props) {
             <EmptyState hasMeetings={p.hasMeetings} disabled={p.disabled} onPick={submit} />
           ) : (
             <div className="space-y-6">
-              {p.messages.map((m) =>
+              {p.messages.map((m, i) =>
                 m.role === "user" ? (
                   <div key={m.id} className="flex justify-end">
                     <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-accent px-4 py-2.5 text-[15px] text-accent-text">
@@ -71,7 +71,11 @@ export function ChatPanel(p: Props) {
                   </div>
                 ) : (
                   <div key={m.id} data-testid="assistant-message" className="rounded-2xl border border-border bg-panel p-4 shadow-sm">
-                    <AssistantMessage message={m} onCite={p.onCite} />
+                    <AssistantMessage
+                      message={m}
+                      onCite={p.onCite}
+                      onAsk={i === p.messages.length - 1 && !p.busy && !p.disabled ? p.onSend : undefined}
+                    />
                   </div>
                 ),
               )}

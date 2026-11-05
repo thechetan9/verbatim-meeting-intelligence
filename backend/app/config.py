@@ -32,6 +32,7 @@ class Settings(BaseSettings):
 
     # --- Agent / guardrails ---
     agent_max_steps: int = 4
+    followup_suggestions: bool = True
     max_question_chars: int = 2000
     max_history_messages: int = 8
     max_upload_bytes: int = 2_000_000

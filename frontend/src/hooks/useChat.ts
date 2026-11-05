@@ -82,6 +82,10 @@ export function useChat(scope: string[]) {
                 trace: d.trace as Trace,
                 status: "done",
               }));
+              setBusy(false); // the answer is complete; suggestions may still arrive after it
+              break;
+            case "suggestions":
+              patch(assistantId, (m) => ({ ...m, suggestions: d.questions as string[] }));
               break;
             case "error":
               patch(assistantId, (m) => ({ ...m, status: "error", error: String(d.message) }));

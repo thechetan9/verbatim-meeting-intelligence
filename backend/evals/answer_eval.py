@@ -53,7 +53,7 @@ def main() -> int:
     ap.add_argument("--model", default=None, help="override LLM_MODEL for this run")
     ap.add_argument("--pause", type=float, default=4.0, help="seconds between questions")
     args = ap.parse_args()
-    overrides: dict = {"llm_fallback_models": []}
+    overrides: dict = {"llm_fallback_models": [], "followup_suggestions": False}
     if args.model:
         overrides["llm_model"] = args.model
     settings = Settings(database_path=":memory:", log_json=True, log_level="WARNING", **overrides)

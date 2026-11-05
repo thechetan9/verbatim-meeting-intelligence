@@ -17,6 +17,7 @@ from collections.abc import Iterator
 from typing import Any
 
 from app.chat.evidence import EvidenceRegistry
+from app.chat.followups import suggest_followups
 from app.chat.guardrails import check_answer, looks_like_injection, sanitise_history
 from app.chat.prompts import build_system_prompt
 from app.chat.tools import TOOL_SPECS, ToolExecutor
@@ -154,3 +155,8 @@ class MeetingAgent:
                 "trace": summary,
             },
         }
+        # After "done" so suggestions never delay the answer itself.
+        if self.settings.followup_suggestions:
+            questions = suggest_followups(self.llm, question, checked.text, meetings)
+            if questions:
+                yield {"event": "suggestions", "data": {"questions": questions}}
