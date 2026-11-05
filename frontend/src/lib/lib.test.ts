@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { groupByOwner, itemKey, loadDone, saveDone } from "./actions";
 import { citationKeyFromHref, linkCitations, trimPartialCitation } from "./citations";
 import { formatTs, initials, speakerHue } from "./format";
 import { actionsFor, speakerStats } from "./speakers";
+import { meetingNotesMarkdown, notesFilename } from "./notes";
 import { SseParser } from "./sse";
 import { loadChat, saveChat } from "./storage";
 
@@ -105,5 +107,54 @@ describe("chat storage", () => {
     expect(loadChat(store)).toEqual([]);
     expect(loadChat(null)).toEqual([]);
     expect(() => saveChat([{ id: "1", role: "user", content: "q" }], null)).not.toThrow();
+  });
+});
+
+describe("meeting notes export", () => {
+  const meeting = {
+    id: "m1", title: "Sprint 14 Planning", date: "2026-10-13", source_filename: "x.vtt", format: "vtt",
+    duration_s: 450, speakers: ["Sofia Alvarez", "Daniel Kim"], utterance_count: 2,
+    created_at: "", insights_status: "ready" as const, insights_error: null,
+  };
+  const insights = {
+    summary: "Chose SNS.",
+    decisions: [{ text: "Use AWS SNS", decided_by: "Sofia Alvarez", evidence: [1] }],
+    action_items: [{ task: "Build SNS service", owner: "Daniel Kim", due: "October 24", evidence: [1] }],
+    open_questions: [],
+    topics: [],
+  };
+  const utts = [{ idx: 1, speaker: "Sofia Alvarez", start_s: 129, end_s: 140, text: "SNS it is." }];
+  it("renders decisions, checkbox action items and timestamps", () => {
+    const md = meetingNotesMarkdown(meeting, insights, utts);
+    expect(md).toContain("# Sprint 14 Planning");
+    expect(md).toContain("- Use AWS SNS (decided by Sofia Alvarez) _(02:09)_");
+    expect(md).toContain("- [ ] Build SNS service: **Daniel Kim**, due October 24 _(02:09)_");
+    expect(md).toContain("## Open questions\n\n- None recorded");
+  });
+  it("builds a safe filename", () => {
+    expect(notesFilename({ ...meeting, title: "Adherence App — Sprint 14 / Planning!" })).toBe(
+      "2026-10-13_adherence-app-sprint-14-planning-notes.md",
+    );
+  });
+});
+
+describe("action items", () => {
+  const item = (owner: string | null, task: string, meeting_id = "m1") => ({
+    meeting_id, meeting_title: "T", meeting_date: null, owner, task, due: null, evidence: [0], start_s: 0,
+  });
+  it("groups by owner, most open items first, unassigned last", () => {
+    const items = [item("Bob", "a"), item(null, "b"), item("Alice", "c"), item("Alice", "d")];
+    const groups = groupByOwner(items, new Set());
+    expect(groups.map((g) => g.owner)).toEqual(["Alice", "Bob", "Unassigned"]);
+    const doneAlice = new Set([itemKey(items[2]), itemKey(items[3])]);
+    expect(groupByOwner(items, doneAlice).map((g) => g.owner)).toEqual(["Bob", "Alice", "Unassigned"]);
+  });
+  it("persists done ticks and survives bad storage", () => {
+    const data = new Map<string, string>();
+    const store = { getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => void data.set(k, v) };
+    saveDone(new Set(["m1::a"]), store);
+    expect([...loadDone(store)]).toEqual(["m1::a"]);
+    data.set("verbatim.actions.done.v1", "oops");
+    expect(loadDone(store).size).toBe(0);
   });
 });

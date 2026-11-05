@@ -1,13 +1,27 @@
 "use client";
 
-import { CalendarDays, CircleHelp, Clock, Gavel, ListTodo, MessagesSquare, RefreshCw, Users, X } from "lucide-react";
+import {
+  CalendarDays,
+  Check,
+  CircleHelp,
+  Clock,
+  Copy,
+  Download,
+  Gavel,
+  ListTodo,
+  MessagesSquare,
+  RefreshCw,
+  Users,
+  X,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { SpeakerAvatar, Spinner, speakerTextColor } from "@/components/ui";
 import { api } from "@/lib/api";
 import { formatDate, formatDuration, formatTs, plural, speakerHue } from "@/lib/format";
 import { actionsFor, speakerStats, type SpeakerStat } from "@/lib/speakers";
-import type { ActionItem, Focus, Meeting, MeetingDetail, Utterance } from "@/lib/types";
+import { meetingNotesMarkdown, notesFilename } from "@/lib/notes";
+import type { ActionItem, Focus, Meeting, MeetingDetail, MeetingInsights, Utterance } from "@/lib/types";
 
 type Tab = "insights" | "transcript";
 
@@ -259,7 +273,10 @@ function InsightsView({
   return (
     <div className="space-y-5 p-4">
       <section>
-        <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">Summary</h3>
+        <div className="mb-1.5 flex items-center justify-between gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Summary</h3>
+          <ExportNotes meeting={meeting} insights={ins} utterances={utterances} />
+        </div>
         <p className="text-sm leading-relaxed">{ins.summary}</p>
       </section>
 
@@ -302,6 +319,48 @@ function InsightsView({
         ))}
       </Section>
     </div>
+  );
+}
+
+function ExportNotes({
+  meeting,
+  insights,
+  utterances,
+}: {
+  readonly meeting: Meeting;
+  readonly insights: MeetingInsights;
+  readonly utterances: Utterance[];
+}) {
+  const [copied, setCopied] = useState(false);
+  const markdown = () => meetingNotesMarkdown(meeting, insights, utterances);
+  const copy = () =>
+    navigator.clipboard
+      .writeText(markdown())
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      })
+      .catch(() => setCopied(false));
+  const download = () => {
+    const url = URL.createObjectURL(new Blob([markdown()], { type: "text/markdown" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = notesFilename(meeting);
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  const btn =
+    "inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[11px] text-muted transition hover:border-accent hover:text-accent";
+  return (
+    <span className="flex gap-1">
+      <button onClick={() => void copy()} className={btn} title="Copy notes as Markdown">
+        {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+        {copied ? "Copied" : "Copy"}
+      </button>
+      <button onClick={download} className={btn} title="Download notes (.md)">
+        <Download className="h-3 w-3" /> .md
+      </button>
+    </span>
   );
 }
 
