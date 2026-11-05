@@ -36,10 +36,16 @@ def infer_date(filename: str) -> str | None:
 
 
 def infer_title(content: str, filename: str) -> str:
-    """First descriptive preamble line (txt title line / VTT NOTE), else a prettified filename."""
-    lines = [ln.strip() for ln in content.lstrip("﻿").splitlines() if ln.strip()]
+    """First descriptive preamble line (txt title line / VTT NOTE), else a prettified filename.
+
+    Only text *before* the first timestamp counts as preamble, so the first line of dialogue
+    (e.g. in an SRT file with no header) is never mistaken for a title.
+    """
+    lines = [ln.strip() for ln in content.lstrip("\ufeff").splitlines() if ln.strip()]
     for line in lines[:4]:
-        if line.upper() in {"WEBVTT", "NOTE"} or _TIMESTAMPED.search(line) or line.isdigit():
+        if _TIMESTAMPED.search(line):
+            break
+        if line.upper() in {"WEBVTT", "NOTE"} or line.isdigit():
             continue
         if line.startswith("(") or line.lower().startswith("synthetic"):
             continue

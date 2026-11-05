@@ -53,7 +53,7 @@ def parse_timestamp(value: str) -> float:
 
 
 def parse_transcript(content: str, filename: str = "") -> ParsedTranscript:
-    text = content.replace("\r\n", "\n").replace("\r", "\n").lstrip("﻿")
+    text = content.replace("\r\n", "\n").replace("\r", "\n").lstrip("\ufeff")
     if not text.strip():
         raise TranscriptParseError("The file is empty.")
 

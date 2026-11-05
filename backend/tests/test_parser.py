@@ -84,3 +84,39 @@ def test_all_sample_transcripts_parse():
         starts = [u.start_s for u in t.utterances]
         assert starts == sorted(starts), f"timestamps not monotonic in {f.name}"
         assert not any(u.text[:2].isdigit() for u in t.utterances), "timestamp leaked into text"
+
+
+def test_upload_samples_parse_and_get_sensible_titles():
+    from app.ingestion.service import infer_date, infer_title
+
+    srt = SAMPLE_DIR / "uploads" / "2026-11-03_wearable-safety-review.srt"
+    t = parse_transcript(srt.read_text(), srt.name)
+    assert t.format == "srt" and len(t.utterances) == 12
+    assert "Dr. Hannah Brooks" in t.speakers
+    # No header in an SRT file: the first line of dialogue must not become the title.
+    assert infer_title(srt.read_text(), srt.name) == "Wearable Safety Review"
+    assert infer_date(srt.name) == "2026-11-03"
+
+
+def test_titles_from_preamble_for_sample_transcripts():
+    from app.ingestion.service import infer_title
+
+    titles = {
+        p.name: infer_title(p.read_text(), p.name)
+        for p in SAMPLE_DIR.iterdir()
+        if p.suffix in {".txt", ".vtt"}
+    }
+    assert (
+        titles["2026-10-06_cardia2-steering-committee.txt"] == "CARDIA-2 Trial Steering Committee"
+    )
+    assert (
+        titles["2026-10-13_adherence-app-sprint-planning.vtt"]
+        == "Adherence App — Sprint 14 Planning"
+    )
+
+
+def test_short_first_dialogue_line_is_not_used_as_title():
+    from app.ingestion.service import infer_title
+
+    srt = "1\n00:00:01,000 --> 00:00:02,000\nAlice: Hi all\n"
+    assert infer_title(srt, "2026-01-01_team-sync.srt") == "Team Sync"
