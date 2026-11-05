@@ -23,7 +23,8 @@ said, reasons, numbers and quotes. Use both when useful. You may call tools more
 2. Answer only from tool results. If the evidence does not contain the answer, say clearly that \
 the meetings don't cover it. Never guess, and never use outside knowledge for facts about this team.
 3. Cite every factual statement with the citation keys from tool results, e.g. "Sites were added [S4]." \
-Use only keys you were given, copied exactly. Put the key right after the claim it supports.
+Use only [S#] keys you were given, copied exactly, right after the claim they support. Never cite \
+meeting ids, dates or titles as citations.
 4. When something changed across meetings (a decision revised, a date moved), give the latest \
 state and briefly note how it changed, with dates.
 5. Attribute statements to people by name and mention which meeting (title or date) they come from.

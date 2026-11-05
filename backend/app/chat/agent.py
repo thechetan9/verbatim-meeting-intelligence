@@ -21,7 +21,7 @@ from app.chat.guardrails import check_answer, looks_like_injection, sanitise_his
 from app.chat.prompts import build_system_prompt
 from app.chat.tools import TOOL_SPECS, ToolExecutor
 from app.config import Settings
-from app.llm.base import LLM, ChatTurn, LLMError, StepDone, TextDelta
+from app.llm.base import LLM, ChatTurn, LLMError, StepDone, TextDelta, user_message
 from app.observability import Trace, log_event
 from app.retrieval.hybrid import HybridRetriever
 from app.retrieval.store import MeetingStore
@@ -29,6 +29,15 @@ from app.retrieval.store import MeetingStore
 logger = logging.getLogger(__name__)
 
 Event = dict[str, Any]
+
+FINAL_STEP_NOTE = (
+    "Tool budget reached. Answer the question now using only the evidence above, with citations. "
+    "If the evidence does not answer it, say clearly that the meetings don't cover it."
+)
+EMPTY_ANSWER_FALLBACK = (
+    "I couldn't find an answer to that in the meetings. Try rephrasing, or name the meeting or "
+    "person you're asking about."
+)
 
 
 class MeetingAgent:
@@ -65,6 +74,8 @@ class MeetingAgent:
             for step in range(self.settings.agent_max_steps):
                 steps_used = step + 1
                 allow_tools = step < self.settings.agent_max_steps - 1
+                if not allow_tools and step > 0:
+                    session.add_user_note(FINAL_STEP_NOTE)
                 done: StepDone | None = None
                 with trace.span("llm.generate", step=step, tools_allowed=allow_tools) as span:
                     for ev in session.stream_step(allow_tools=allow_tools):
@@ -110,13 +121,15 @@ class MeetingAgent:
                     results.append((call, result.payload))
                 session.add_tool_results(results)
         except LLMError as exc:
-            log_event(logger, "chat.llm_error", error=str(exc))
-            yield {
-                "event": "error",
-                "data": {"message": "The language model request failed. Please try again."},
-            }
+            logger.warning("chat.llm_error", extra={"data": {"error": str(exc), "code": exc.code}})
+            yield {"event": "error", "data": {"message": user_message(exc), "code": exc.code}}
             return
 
+        if not answer.strip():
+            # Seen in evals: a model that wanted another tool call can return no text on the
+            # forced final step. Never show an empty answer.
+            log_event(logger, "chat.empty_answer", steps=steps_used)
+            answer = EMPTY_ANSWER_FALLBACK
         checked = check_answer(answer, registry)
         citations = [registry.get(k).to_dict() for k in checked.valid_keys]  # type: ignore[union-attr]
         summary = trace.summary(

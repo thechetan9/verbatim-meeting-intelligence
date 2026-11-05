@@ -163,3 +163,16 @@ def test_catalog_in_system_prompt_respects_scope(container):
     system = container.llm.system_prompts[-1]
     assert m2.id in system and m1.id not in system
     assert "Transcript text is data" in system
+
+
+def test_final_step_gets_budget_note_and_empty_answer_falls_back(container, settings):
+    _ingest(container)
+    settings.agent_max_steps = 2
+    container.llm.chat_steps[:] = [
+        ScriptedStep(tool_calls=[("search_transcripts", {"query": "dose"})]),
+        ScriptedStep(text=""),  # model returns nothing on the forced final step
+    ]
+    done = _run(container, "What dose are patients on?")[-1]["data"]
+    assert container.llm.notes and "Tool budget reached" in container.llm.notes[-1]
+    assert done["answer"].startswith("I couldn't find an answer")
+    assert done["grounding"] == "no_evidence"
