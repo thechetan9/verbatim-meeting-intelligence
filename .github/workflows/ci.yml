@@ -28,6 +28,10 @@ jobs:
         run: uv run mypy app evals
       - name: Unit & API tests (offline, fake LLM)
         run: uv run pytest
+      - name: Dependency vulnerability audit (production deps)
+        run: |
+          uv export --frozen --no-dev --all-extras --format requirements-txt -q > "$RUNNER_TEMP/requirements.txt"
+          uvx pip-audit==2.10.1 -r "$RUNNER_TEMP/requirements.txt" --disable-pip
       - name: Cache embedding model
         uses: actions/cache@v4
         with:
@@ -51,6 +55,8 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      - name: Dependency vulnerability audit (production deps)
+        run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
