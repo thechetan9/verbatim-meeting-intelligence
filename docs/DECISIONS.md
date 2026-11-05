@@ -84,15 +84,28 @@ FTS5 gives a real BM25 index, so hybrid search costs nothing extra.
 interface; adds tenancy (row-level security) and concurrent writers. OpenSearch if corpus or query
 volume gets large.
 
-## D6. LLM: Gemini 2.5 Flash behind a provider-neutral interface
+## D6. LLM: Gemini 3.5 Flash, chosen by eval, with a fallback chain
 
-**Considered:** Gemini 2.5 Flash / Pro, Claude Sonnet, GPT-4.1-mini, a local Llama via Ollama.
-**Chose:** Gemini 2.5 Flash (configurable via `LLM_MODEL`), with thinking capped low.
-**Why:** good tool calling and JSON-schema output, fast and cheap for an interactive loop, native
-audio input (used for the voice-to-transcript bonus), long context for insight extraction, and a free
-tier so reviewers can run it.
-**Trade-off:** I'd want to A/B against Claude Sonnet on the answer eval before production; the
-`LLM` protocol (`app/llm/base.py`) makes that one adapter file.
+**Considered:** Gemini 3.8 Flash / 3.5 Flash / 3.1 Flash-Lite / 3.1 Pro, Claude Sonnet, a local model.
+**How it went:** I started on `gemini-2.5-flash`. The first live smoke test returned 404: it is retired
+for new projects. On the free tier, the newer flash models allowed only 20 requests per day and 3.8
+Flash was often overloaded (503). Two changes came out of that: a **fallback chain** in the adapter
+(retry once, then the next model, only before any output has streamed, sticky per chat), and a
+**per-model answer eval** so the default is chosen on data.
+
+| model | correct facts | refusals | p50 latency |
+|---|---|---|---|
+| 3.8 Flash | 25/25 | 3/3 | 5.3 s |
+| **3.5 Flash** | 25/25 | 3/3 | 3.7 s |
+| 3.1 Flash-Lite | 25/25 | 3/3 | 2.1 s |
+
+**Chose:** 3.5 Flash as default; fallback order 3.1 Flash-Lite → 3.8 Flash.
+**Why:** same quality as 3.8 at lower latency. Flash-Lite is 2x faster but was the one model that
+cited meeting ids instead of evidence keys in an earlier run; with so few data points I'd rather
+keep it as the first fallback than the default. Reasoning ("thinking") is set to low: answering from
+retrieved text doesn't need long reasoning, and it costs latency.
+**Also:** native audio input powers the voice bonus. Every other component only sees the `LLM`
+protocol (`app/llm/base.py`), so trying Claude or an open model is one adapter + one eval run.
 
 ## D7. Orchestration: a small hand-written tool loop, not a framework
 

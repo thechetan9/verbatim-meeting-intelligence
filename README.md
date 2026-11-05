@@ -7,6 +7,8 @@ clicking a citation opens the transcript at that moment.
 Built for the Newpage Solutions FDE assignment (option 3: **Meeting Intelligence System**), including
 the optional voice-to-transcript bonus.
 
+![Answer with numbered citations, agent steps and trace; the transcript jumped to the cited moment](docs/screenshots/trace.png)
+
 - **Ask across meetings.** "Which new trial sites are we adding?" correctly reports the *latest*
   decision (Columbus + Ann Arbor), and notes Pittsburgh dropped out after the first meeting.
 - **Receipts.** Numbered citations show speaker, timestamp and quote on hover; the answer is labelled
@@ -19,11 +21,12 @@ the optional voice-to-transcript bonus.
 - **Also an MCP server.** The same tools are exposed over MCP, so Claude Code / Claude Desktop can
   query the meetings directly.
 
-Demo video: _link added on submission_
+Demo video: _link added on submission_ · More screenshots: [below](#screenshots)
 
 ---
 
 ## Contents
+
 1. [Quick start](#1-quick-start)
 2. [Architecture](#2-architecture)
 3. [RAG / LLM approach and decisions](#3-rag--llm-approach-and-decisions)
@@ -38,7 +41,7 @@ Demo video: _link added on submission_
 
 ## 1. Quick start
 
-You need a Gemini API key (free: https://aistudio.google.com/apikey). Without one, upload and search
+You need a Gemini API key (free: <https://aistudio.google.com/apikey>). Without one, upload and search
 still work, but chat and insights are disabled.
 
 ```bash
@@ -48,7 +51,7 @@ echo "GEMINI_API_KEY=your-key" > backend/.env
 docker compose up --build
 ```
 
-Open http://localhost:3000 and click **Load sample meetings** (four synthetic meetings from a
+Open <http://localhost:3000> and click **Load sample meetings** (four synthetic meetings from a
 fictional clinical-trial team), then try one of the suggested questions.
 
 <details>
@@ -58,18 +61,20 @@ Requires Python 3.12 + [uv](https://docs.astral.sh/uv/) and Node 24.
 
 ```bash
 # terminal 1 — API on :8000 (first run downloads the 67 MB embedding model)
+
 cd backend
 uv sync
 echo "GEMINI_API_KEY=your-key" > .env
 uv run uvicorn app.main:app_factory --factory --reload --port 8000
 
 # terminal 2 — UI on :3000
+
 cd frontend
 npm ci
 npm run dev
 ```
 
-API docs: http://localhost:8000/docs
+API docs: <http://localhost:8000/docs>
 </details>
 
 <details>
@@ -86,6 +91,10 @@ Then ask Claude Code e.g. "using verbatim, what did we decide about SMS reminder
 **Transcript formats accepted:** `[00:01:23] Name: text`, `00:01:23 Name: text`,
 `Name (00:01:23): text`, two-line "Name  00:01:23 ⏎ text" (Otter style), WebVTT with `<v Name>`
 tags, and SRT with `Name:` prefixes. Examples in [`sample_data/`](sample_data).
+
+**Try the voice bonus:** upload [`sample_data/audio/2026-11-05_patient-portal-launch-sync.m4a`](sample_data/audio)
+(a 30-second, two-speaker clip). It is transcribed with speaker names and timestamps, then indexed
+and analysed like any other meeting. Audio formats: mp3, wav, m4a, aac, ogg, flac, webm (≤ 20 MB).
 
 ---
 
@@ -115,14 +124,15 @@ flowchart LR
     AG --> G["Guardrails<br/>citation check · grounding label"]
   end
 
-  LLM[["Gemini 2.5 Flash"]]
+  LLM[["Gemini 3.5 Flash<br/>fallback: 3.1 Flash-Lite → 3.8 Flash"]]
   UI -- REST / SSE --> API
   AG <--> LLM
   X <--> LLM
   MCP["MCP server (stdio)"] --> T1 & T2
 ```
 
-**Request flow for a question**
+#### Request flow for a question
+
 1. The UI posts the question, recent history and (optionally) the selected meetings to `/api/chat`.
 2. The agent gets a system prompt with the meeting catalog (ids, titles, dates, participants) — not
    the transcripts — plus two tools.
@@ -158,7 +168,7 @@ Summary:
 | Embeddings | `bge-small-en-v1.5`, local ONNX | transcripts aren't sent out just to be indexed; free; deterministic CI |
 | Vector store | SQLite: FTS5 + vectors, exact cosine | zero infra; exact search is ms at this scale; pgvector is the prod path |
 | Retrieval | BM25 + dense, Reciprocal Rank Fusion | ids/names need BM25, paraphrases need dense; hybrid MRR 0.86 vs 0.79 / 0.71 |
-| LLM | Gemini 2.5 Flash (configurable) | fast tool calling, JSON schema output, audio input, free tier |
+| LLM | Gemini 3.5 Flash, with a fallback chain (configurable) | picked by eval across 3 models; same quality as 3.8 Flash, faster; native audio input |
 | Orchestration | own bounded tool loop (no framework) | one loop + two tools; owning it keeps budget, scope and citations explicit |
 
 **Why an agent and not a fixed "retrieve then answer" chain?** Meeting questions come in three
@@ -168,7 +178,8 @@ and pre-extracted decisions/action items — cover all three, and the model can 
 better terms when the first results are thin. The loop is capped at 4 steps; the last step has tools
 disabled so it always ends with an answer.
 
-**Prompt and context management**
+#### Prompt and context management
+
 - The system prompt holds rules + a compact meeting catalog, so the model can resolve "the steering
   committee" or "last week's planning" to ids. Transcripts only arrive through tools, and only the
   retrieved windows (6 chunks ≈ 1.5k words) — never whole meetings.
@@ -178,7 +189,7 @@ disabled so it always ends with an answer.
   the previous turn's evidence and would confuse the model).
 - Insights are extracted once per meeting at upload, so frequent questions don't re-read transcripts.
 
-**Guardrails**
+#### Guardrails
 
 | risk | mitigation |
 |---|---|
@@ -190,7 +201,8 @@ disabled so it always ends with an answer.
 | Runaway agent | 4-step budget, 300-char tool queries, top-k caps |
 | Bad uploads | extension allow-list, 2 MB text / 20 MB audio limits, UTF-8 check, parse validation with a clear error |
 
-**Observability**
+#### Observability
+
 - Structured JSON logs with a request id on every line (`X-Request-ID` header in, out, and on the
   logs of background work).
 - Per-answer trace: spans for each LLM call and tool call with latency, tokens, retrieval ranks and
@@ -204,9 +216,9 @@ disabled so it always ends with an answer.
 
 ```bash
 cd backend
-uv run pytest                          # 53 tests, offline (fake LLM, hashing embedder)
+uv run pytest                          # 54 tests, offline (fake LLM, hashing embedder)
 uv run python -m evals.retrieval_eval  # offline, runs in CI as a gate
-uv run python -m evals.answer_eval     # end-to-end with Gemini (~$0.01 for the whole set)
+uv run python -m evals.answer_eval --model gemini-3.5-flash  # end-to-end, a few cents
 cd ../frontend && npm test             # SSE parser, citation linking, formatting
 ```
 
@@ -226,9 +238,24 @@ prompt-injection attempt).
 CI fails if hybrid MRR < 0.75 or hit@3 < 0.9. With only 15 chunks, hit@6 is 1.0 for every mode, so
 ranking metrics are the meaningful ones.
 
-**End-to-end answers** (Gemini 2.5 Flash; deterministic checks, no LLM-as-judge):
+**End-to-end answers**: same 28 questions on three Gemini models, fallbacks disabled so each row
+is one model, deterministic checks (no LLM-as-judge):
 
-_Results from the first full run will be added here._
+| model | correct facts | grounded | cites the right meeting | correct refusals | latency p50 / p95 | tokens / question |
+|---|---|---|---|---|---|---|
+| gemini-3.8-flash | 25/25 | 25/25 | 24/24 | 3/3 | 5.3 s / 7.7 s | ~5,100 |
+| **gemini-3.5-flash** (default) | 25/25 | 25/25 | 24/24 | 3/3 | 3.7 s / 5.7 s | ~4,900 |
+| gemini-3.1-flash-lite | 25/25 | 25/25 | 24/24 | 3/3 | 2.1 s / 2.5 s | ~4,100 |
+
+All three are perfect on this small set, so the choice came down to latency and robustness:
+3.5-flash is faster than 3.8-flash at the same quality; flash-lite is fastest, but in earlier runs it
+was the only model that cited meeting ids instead of evidence keys (the guardrail caught it). With
+one data point I kept 3.5-flash as default and put flash-lite first in the fallback chain. Switching
+is one env var (`LLM_MODEL`). ~5k tokens per question is a fraction of a cent at flash-class prices.
+
+The eval earned its keep: it found an empty-answer bug at the agent's step budget, a refusal
+detector that missed "I can only assist with...", and its own bug of hiding errored questions
+(details in [section 8](#8-how-i-used-ai-tools)). Full per-question answers: `backend/evals/results/`.
 
 Checks: correctness = required facts present; grounded = at least one valid citation; citation
 meeting = a citation points into the meeting that holds the answer; refusals = the unanswerable
@@ -268,19 +295,22 @@ Beyond the RAG choices above:
 What I'd change, in priority order, to run this for real users with sensitive (health-adjacent)
 meeting content:
 
-**Data and storage**
+#### Data and storage
+
 - SQLite → **Aurora PostgreSQL** with **pgvector (HNSW)** + full-text search, behind the same
   `MeetingStore` interface. Row-level security by tenant/team; meetings are access-controlled, and the
   ACL is applied as a retrieval filter so the model can't see what the user can't.
 - Raw transcripts and audio in **S3** (SSE-KMS, lifecycle/retention rules). Upload via pre-signed URLs.
 
-**Ingestion pipeline**
+#### Ingestion pipeline
+
 - S3 event → **SQS** → worker (ECS task or Lambda) for parse → chunk → embed → extract insights.
   Idempotent by content hash, retries with a DLQ, status written back to the DB (the UI already polls).
 - Audio: **Amazon Transcribe** (speaker diarization, medical vocabulary) for long recordings; the
   Gemini path stays for short clips.
 
-**Serving**
+#### Serving
+
 - API on **ECS Fargate** behind an **ALB** (idle timeout raised for SSE), autoscaled on CPU/requests;
   the API is stateless so this is straightforward. Frontend as a static export on **S3 + CloudFront**
   (it is fully client-rendered), or on Vercel.
@@ -290,13 +320,15 @@ meeting content:
 - Embeddings: keep bge-small in the worker image (CPU is fine), or move to a managed embedding
   model if multilingual meetings matter.
 
-**Security and compliance**
+#### Security and compliance
+
 - SSO (Cognito / Entra ID via OIDC), per-user rate limits, AWS WAF.
 - Secrets in **Secrets Manager** with rotation; no keys in images or env files.
 - Optional PII/PHI redaction before text reaches the LLM (Comprehend Medical or Presidio), audit log of
   every question, answer and citation, configurable retention.
 
-**Operations**
+#### Operations
+
 - OpenTelemetry → CloudWatch / X-Ray, or Langfuse for LLM-specific traces. Dashboards for p95 latency,
   tokens and cost per tenant, grounding rate, refusal rate, user feedback (thumbs up/down).
 - CI/CD: GitHub Actions → ECR → deploy with Terraform/CDK; the retrieval eval gates every PR and the
@@ -311,11 +343,12 @@ repeated questions.
 
 ## 7. Engineering standards
 
-**Followed**
+#### Followed
+
 - Layered architecture with dependency inversion; one composition root (`container.py`).
 - 12-factor config: env vars only (`app/config.py`), `.env` git-ignored, `.env.example` provided.
 - Typed everywhere: mypy on the backend, strict TypeScript on the frontend; pydantic at boundaries.
-- Tests: 53 backend (parser formats, chunker invariants, retrieval + RRF, FTS query sanitising,
+- Tests: 54 backend (parser formats, chunker invariants, retrieval + RRF, FTS query sanitising,
   guardrails, agent loop with a scripted LLM, API incl. SSE and upload validation) and 8 frontend.
   No test calls a real LLM.
 - Lint/format: ruff, ESLint; complexity kept low (SonarLint clean in the editor).
@@ -324,7 +357,8 @@ repeated questions.
 - Security basics: upload limits and allow-list, FTS query sanitising (no query-syntax injection),
   CORS allow-list, no secrets logged, pinned dependency versions.
 
-**Skipped (deliberately, for time)**
+#### Skipped (deliberately, for time)
+
 - Authentication, authorization and rate limiting — the API is open; it's a local demo.
 - DB migrations (schema is created on start-up); would use Alembic with Postgres.
 - Browser end-to-end tests (Playwright) and React component tests.
@@ -340,7 +374,8 @@ I built this with **Claude Code** in VS Code as the main implementer, with me ac
 who decides what to build, reviews it, and decides when it's done. Most of the code was generated;
 the decisions, the order of work and the definition of "done" were not left to the model.
 
-**How the workflow ran**
+#### How the workflow ran
+
 1. **Decide before generating.** Picked the option, the stack and the key RAG choices first (see
    `docs/DECISIONS.md`), then asked for code in small slices in dependency order: domain models →
    parser → chunker → store → retrieval → evals → LLM adapter → agent → API → UI.
@@ -355,7 +390,8 @@ the decisions, the order of work and the definition of "done" were not left to t
    and `/retrieval-experiment` (change → measure → keep or revert). A new session, or a teammate's,
    starts from the same rules.
 
-**Mistakes the AI made that the process caught**
+#### Mistakes the AI made that the process caught
+
 - The parser read the Otter-style header `Dr. Lena Fischer  00:00:05` as timestamp `00:00` with the
   text `05`. Caught by printing parsed samples; fixed with a negative look-ahead and a regression test.
 - The chunker's overlap could push a chunk past its size limit, and the "merge tiny tail" step ignored
@@ -364,17 +400,32 @@ the decisions, the order of work and the definition of "done" were not left to t
   iteration. Caught by the SSE API test.
 - **SDK drift:** `google-genai` 2.x and `mcp` 2.x differ from what the model remembered (e.g. FastMCP
   is now `MCPServer`). Rule: inspect the installed API before writing an adapter.
+- **Model drift:** the first default, `gemini-2.5-flash`, turned out to be retired for new projects
+  (404), and the newest flash model was intermittently overloaded (503). Found by a live smoke test,
+  not by unit tests; fixed with a model fallback chain.
+- **The eval lied, once.** The first answer-eval run excluded errored questions from its totals, so a
+  rate-limited run looked clean. Fixed: errors are counted and shown, calls are paced and retried.
+- **Empty answers.** The eval caught a case where the model wanted another search on the forced
+  final step and returned no text. Fixed with an "answer now" note before that step and a
+  "not found" fallback, plus a regression test.
+- **A correct refusal labelled "unverified".** "I can only assist with questions related to the
+  meetings" didn't match the refusal detector (it knew "help", not "assist"), so the UI would have
+  shown a warning on a correct answer. Broadened the patterns and added a test.
+- **UI:** a screenshot run showed that clicking a citation on desktop opened the mobile drawer's
+  backdrop and dimmed the page. Fixed by opening the drawer only on narrow screens.
 - Dependency hygiene: the latest `lucide-react` and `vitest` had been published days earlier; pinned
   versions at least two weeks old instead.
 
-**Do's**
+#### Do's
+
 - Give the assistant a written contract (CLAUDE.md) and small, testable tasks with clear interfaces.
 - Keep a fake for every external dependency so the assistant can verify its own work offline.
 - Paste real failures back verbatim; ask for the fix *and* a regression test.
 - Use it for breadth (boilerplate, test cases, UI states, refactors), keep depth (architecture,
   trade-offs, what to measure) as a human decision.
 
-**Don'ts**
+#### Don'ts
+
 - Don't accept "done" without the gates passing. Don't let it edit an eval or threshold to go green.
 - Don't trust its memory of fast-moving SDKs or package versions; check what's installed.
 - Don't let it add frameworks or services "for later".
@@ -385,7 +436,8 @@ the decisions, the order of work and the definition of "done" were not left to t
 
 ## 9. What I'd do with more time
 
-**Next, in order of value**
+#### Next, in order of value
+
 1. **Sentence-level faithfulness check.** Today I verify that cited lines exist and were shown, not that
    they support the sentence. Add an NLI model or a small LLM judge per sentence, calibrated against a
    few dozen human labels, and show "partially supported" in the UI.
@@ -403,7 +455,8 @@ the decisions, the order of work and the definition of "done" were not left to t
 7. **Compare models on the answer eval** (Claude Sonnet vs Gemini Flash vs a small open model) for
    quality, latency and cost per question, then route by question type.
 
-**What I'd do differently**
+#### What I'd do differently
+
 - Write the eval set first. I wrote it after the first version of retrieval; having it from the start
   would have made the early chunking choices measured instead of reasoned.
 - Spend less time on input-format coverage and more on cross-meeting features; real teams mostly
@@ -411,11 +464,20 @@ the decisions, the order of work and the definition of "done" were not left to t
 
 ---
 
+## Screenshots
+
+| Insights extracted per meeting | Hover a citation |
+|---|---|
+| ![Insights panel: summary, decisions, action items with owners and due dates](docs/screenshots/insights.png) | ![Citation hover card with speaker, timestamp and quote](docs/screenshots/citation-hover.png) |
+| **Refuses when the meetings don't cover it** | **Mobile layout** |
+| ![Answer labelled 'Not covered in these meetings'](docs/screenshots/not-covered.png) | ![Mobile view](docs/screenshots/mobile.png) |
+
 ### Repository map
+
 ```
 backend/            FastAPI service, evals, tests, Dockerfile
 frontend/           Next.js 15 app (React 19, Tailwind 4)
-sample_data/        4 synthetic meetings (txt ×3 layouts, WebVTT)
+sample_data/        4 synthetic meetings (txt in 3 layouts, WebVTT) + a sample audio clip
 docs/DECISIONS.md   decision log with measurements
 CLAUDE.md, .claude/ instructions and commands for AI coding assistants
 docker-compose.yml  one-command local run
