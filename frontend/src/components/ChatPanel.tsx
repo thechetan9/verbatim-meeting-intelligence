@@ -70,7 +70,7 @@ export function ChatPanel(p: Props) {
                     </p>
                   </div>
                 ) : (
-                  <div key={m.id} className="rounded-2xl border border-border bg-panel p-4 shadow-sm">
+                  <div key={m.id} data-testid="assistant-message" className="rounded-2xl border border-border bg-panel p-4 shadow-sm">
                     <AssistantMessage message={m} onCite={p.onCite} />
                   </div>
                 ),

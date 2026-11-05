@@ -211,7 +211,7 @@ function MeetingRow({
           title="Limit questions to selected meetings"
           className="mt-1 h-3.5 w-3.5 shrink-0 accent-accent"
         />
-        <button onClick={onOpen} title={m.title} className="min-w-0 flex-1 text-left">
+        <button onClick={onOpen} title={m.title} className="min-w-0 flex-1 pr-5 text-left">
           <span className="flex items-center gap-1.5">
             <FileText className="h-3.5 w-3.5 shrink-0 text-faint" />
             <span className="truncate text-sm font-medium">{m.title}</span>

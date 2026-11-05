@@ -38,7 +38,9 @@ export default function Home() {
     setActiveId(meetingId);
     setTab("transcript");
     setFocus({ meetingId, utteranceIdx, nonce: Date.now() });
-    setDrawer((d) => (d === "meetings" ? null : "context"));
+    // On wide screens the context panel is always visible; only narrow layouts need the drawer.
+    const panelVisible = window.matchMedia("(min-width: 1280px)").matches;
+    setDrawer(panelVisible ? null : "context");
   }, []);
 
   const onCite = useCallback((c: Citation) => jump(c.meeting_id, c.utterance_idx), [jump]);
@@ -136,7 +138,9 @@ export default function Home() {
         <dialog
           open
           aria-label={drawer === "meetings" ? "Meetings" : "Meeting details"}
-          className="fixed inset-0 z-40 m-0 flex h-full max-h-none w-full max-w-none bg-transparent p-0"
+          className={`fixed inset-0 z-40 m-0 flex h-full max-h-none w-full max-w-none bg-transparent p-0 ${
+            drawer === "context" ? "xl:hidden" : "lg:hidden"
+          }`}
         >
           <button className="absolute inset-0 bg-black/30" aria-label="Close" onClick={() => setDrawer(null)} />
           <div className={drawerClass(drawer)}>{drawer === "meetings" ? sidebar : context}</div>
@@ -153,6 +157,6 @@ function disabledReason(llmEnabled: boolean, meetingCount: number): string | und
 }
 
 function drawerClass(drawer: Exclude<Drawer, null>): string {
-  const side = drawer === "context" ? "ml-auto xl:hidden" : "lg:hidden";
+  const side = drawer === "context" ? "ml-auto" : "";
   return `relative h-full w-[88vw] max-w-100 shadow-2xl ${side}`;
 }
