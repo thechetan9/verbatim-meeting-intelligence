@@ -105,9 +105,16 @@ tags, and SRT with `Name:` prefixes. Examples in [`sample_data/`](sample_data).
 - `2026-11-03_wearable-safety-review.srt`: a fifth meeting in SRT format. It continues the story
   (a safety issue with the trial wearable, new action items for Priya and Sofia), so after uploading
   it, cross-meeting answers change, e.g. "What does Priya Nair own across all meetings?".
-- `2026-11-05_patient-portal-launch-sync.m4a`: a 30-second, two-speaker recording for the voice
-  bonus. It is transcribed with speaker names and timestamps, then indexed and analysed like any
-  other meeting. Audio formats: mp3, wav, m4a, aac, ogg, flac, webm (≤ 20 MB).
+- `remote-control-design-kickoff.m4a`: **real human speech**, a 2-minute excerpt of a four-person
+  product-design kickoff from the [AMI Meeting Corpus](https://groups.inf.ed.ac.uk/ami/corpus/)
+  (CC BY 4.0, see [attribution](sample_data/uploads/ATTRIBUTION.md)). Speakers are named from
+  their introductions (Laura, David, Andrew, Craig). It's an introductions-and-brief segment, so the
+  insights correctly show no decisions or action items yet.
+- `2026-11-05_patient-portal-launch-sync.m4a`: a short, scripted two-speaker clip (synthetic voices)
+  that does contain a decision and action items.
+
+Audio is transcribed with speaker names and timestamps, then indexed and analysed like any other
+meeting. Formats: mp3, wav, m4a, aac, ogg, flac, webm (≤ 20 MB).
 
 ---
 
