@@ -1,8 +1,9 @@
 "use client";
 
-import { Library, PanelRight, Quote } from "lucide-react";
+import { Library, ListTodo, MessagesSquare, PanelRight, Quote } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
+import { ActionItemsBoard } from "@/components/ActionItemsBoard";
 import { ChatPanel } from "@/components/ChatPanel";
 import { ContextPanel } from "@/components/ContextPanel";
 import { Sidebar } from "@/components/Sidebar";
@@ -21,6 +22,7 @@ export default function App() {
   const [tab, setTab] = useState<"insights" | "transcript">("insights");
   const [focus, setFocus] = useState<Focus | null>(null);
   const [drawer, setDrawer] = useState<Drawer>(null);
+  const [view, setView] = useState<"chat" | "actions">("chat");
 
   // Derived during render (not synced in an effect): selections stay valid as meetings are
   // added or deleted, and the first meeting is shown when nothing is selected.
@@ -125,18 +127,44 @@ export default function App() {
 
       <main className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[280px_1fr] xl:grid-cols-[280px_1fr_400px]">
         <div className="hidden min-h-0 lg:block">{sidebar}</div>
-        <ChatPanel
-          messages={chat.messages}
-          busy={chat.busy}
-          disabled={!!chatDisabledReason}
-          disabledReason={chatDisabledReason}
-          hasMeetings={meetings.length > 0}
-          scopeCount={scope.length}
-          onSend={chat.send}
-          onStop={chat.stop}
-          onReset={chat.reset}
-          onCite={onCite}
-        />
+        <section className="flex min-h-0 flex-col">
+          <div className="flex shrink-0 justify-center border-b border-border bg-bg px-4 pt-2">
+            <div role="tablist" aria-label="View" className="flex gap-1">
+              {(["chat", "actions"] as const).map((v) => (
+                <button
+                  key={v}
+                  role="tab"
+                  aria-selected={view === v}
+                  onClick={() => setView(v)}
+                  className={`inline-flex items-center gap-1.5 border-b-2 px-3 pb-2 text-sm font-medium transition ${
+                    view === v ? "border-accent text-text" : "border-transparent text-muted hover:text-text"
+                  }`}
+                >
+                  {v === "chat" ? <MessagesSquare className="h-4 w-4" /> : <ListTodo className="h-4 w-4" />}
+                  {v === "chat" ? "Chat" : "Action items"}
+                </button>
+              ))}
+            </div>
+          </div>
+          {view === "chat" ? (
+            <ChatPanel
+              messages={chat.messages}
+              busy={chat.busy}
+              disabled={!!chatDisabledReason}
+              disabledReason={chatDisabledReason}
+              hasMeetings={meetings.length > 0}
+              scopeCount={scope.length}
+              onSend={chat.send}
+              onStop={chat.stop}
+              onReset={chat.reset}
+              onCite={onCite}
+            />
+          ) : (
+            <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
+              <ActionItemsBoard meetings={meetings} scope={scope} onJump={jump} />
+            </div>
+          )}
+        </section>
         <div className="hidden min-h-0 xl:block">{context}</div>
       </main>
 

@@ -9,7 +9,7 @@ from collections.abc import Awaitable, Callable
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import chat, meetings
+from app.api import chat, meetings, tracker
 from app.config import Settings, get_settings
 from app.container import Container, build_container
 from app.observability import configure_logging, log_event, new_request_id, request_id_var
@@ -62,6 +62,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
 
     app.include_router(meetings.router)
     app.include_router(chat.router)
+    app.include_router(tracker.router)
     log_event(
         logging.getLogger("app"),
         "app.started",

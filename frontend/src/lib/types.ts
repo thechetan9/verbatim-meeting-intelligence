@@ -117,6 +117,19 @@ export interface ChatMessage {
   trace?: Trace;
   status?: "streaming" | "done" | "error";
   error?: string;
+  suggestions?: string[];
+}
+
+/** One row of the cross-meeting action-item tracker (GET /api/action-items). */
+export interface TrackedActionItem {
+  meeting_id: string;
+  meeting_title: string;
+  meeting_date: string | null;
+  owner: string | null;
+  task: string;
+  due: string | null;
+  evidence: number[];
+  start_s: number | null;
 }
 
 /** Where the transcript panel should scroll to and highlight. */

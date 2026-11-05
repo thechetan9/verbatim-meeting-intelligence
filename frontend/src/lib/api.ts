@@ -1,4 +1,4 @@
-import type { Health, Meeting, MeetingDetail, Utterance } from "./types";
+import type { Health, Meeting, MeetingDetail, TrackedActionItem, Utterance } from "./types";
 import { readSse, type SseEvent } from "./sse";
 
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
@@ -35,6 +35,10 @@ export const api = {
     request<{ meeting_id: string; utterances: Utterance[] }>(`/api/meetings/${id}/transcript`),
   deleteMeeting: (id: string) => request<void>(`/api/meetings/${id}`, { method: "DELETE" }),
   regenerateInsights: (id: string) => request<void>(`/api/meetings/${id}/insights`, { method: "POST" }),
+  actionItems: (meetingIds: string[] = []) => {
+    const qs = meetingIds.map((id) => `meeting_ids=${encodeURIComponent(id)}`).join("&");
+    return request<TrackedActionItem[]>(`/api/action-items${qs ? `?${qs}` : ""}`);
+  },
   loadSamples: () => request<{ loaded: Meeting[]; skipped: string[] }>("/api/meetings/samples", { method: "POST" }),
   upload: (file: File) => {
     const form = new FormData();
