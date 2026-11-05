@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api, ApiError } from "@/lib/api";
+import { loadChat, saveChat } from "@/lib/storage";
 import type { AgentStep, ChatMessage, Citation, Grounding, Trace } from "@/lib/types";
 
 let counter = 0;
@@ -10,9 +11,14 @@ const newId = () => `msg_${Date.now()}_${counter++}`;
 
 /** Chat state + streaming. The server is stateless: we send recent history with each question. */
 export function useChat(scope: string[]) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadChat());
   const [busy, setBusy] = useState(false);
   const abort = useRef<AbortController | null>(null);
+
+  // Persist finished conversations (not every streamed token) so a refresh keeps the chat.
+  useEffect(() => {
+    if (!busy) saveChat(messages);
+  }, [messages, busy]);
 
   const patch = (id: string, fn: (m: ChatMessage) => ChatMessage) =>
     setMessages((prev) => prev.map((m) => (m.id === id ? fn(m) : m)));

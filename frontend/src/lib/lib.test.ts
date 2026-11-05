@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { citationKeyFromHref, linkCitations, trimPartialCitation } from "./citations";
 import { formatTs, initials, speakerHue } from "./format";
+import { actionsFor, speakerStats } from "./speakers";
 import { SseParser } from "./sse";
+import { loadChat, saveChat } from "./storage";
 
 describe("SseParser", () => {
   it("parses events split across arbitrary chunk boundaries", () => {
@@ -47,5 +49,61 @@ describe("format", () => {
   it("gives stable speaker colours and initials", () => {
     expect(speakerHue("Priya Nair")).toBe(speakerHue("Priya Nair"));
     expect(initials("Dr. Anita Rao")).toBe("AR");
+  });
+});
+
+describe("speakers", () => {
+  const utts = [
+    { idx: 0, speaker: "Dr. Anita Rao", start_s: 0, end_s: 5, text: "one two three four" },
+    { idx: 1, speaker: "Marcus Lee", start_s: 5, end_s: 9, text: "five six" },
+    { idx: 2, speaker: "Dr. Anita Rao", start_s: 9, end_s: 12, text: "seven eight" },
+  ];
+  it("computes turns and share of words, busiest speaker first", () => {
+    const stats = speakerStats(utts);
+    expect(stats.map((s) => [s.name, s.turns, s.words])).toEqual([
+      ["Dr. Anita Rao", 2, 6],
+      ["Marcus Lee", 1, 2],
+    ]);
+    expect(stats[0].share).toBeCloseTo(0.75);
+  });
+  it("matches action-item owners loosely (titles, first names)", () => {
+    const items = [
+      { task: "a", owner: "Anita Rao", due: null, evidence: [0] },
+      { task: "b", owner: "Marcus", due: null, evidence: [1] },
+      { task: "c", owner: null, due: null, evidence: [2] },
+    ];
+    expect(actionsFor("Dr. Anita Rao", items).map((a) => a.task)).toEqual(["a"]);
+    expect(actionsFor("Marcus Lee", items).map((a) => a.task)).toEqual(["b"]);
+  });
+});
+
+describe("chat storage", () => {
+  function memoryStore() {
+    const data = new Map<string, string>();
+    return {
+      getItem: (k: string) => data.get(k) ?? null,
+      setItem: (k: string, v: string) => void data.set(k, v),
+      removeItem: (k: string) => void data.delete(k),
+    };
+  }
+  it("round-trips messages and marks interrupted streams", () => {
+    const store = memoryStore();
+    saveChat(
+      [
+        { id: "1", role: "user", content: "q" },
+        { id: "2", role: "assistant", content: "half", status: "streaming" },
+      ],
+      store,
+    );
+    const loaded = loadChat(store);
+    expect(loaded).toHaveLength(2);
+    expect(loaded[1].status).toBe("error");
+  });
+  it("survives corrupt or missing storage", () => {
+    const store = memoryStore();
+    store.setItem("verbatim.chat.v1", "{not json");
+    expect(loadChat(store)).toEqual([]);
+    expect(loadChat(null)).toEqual([]);
+    expect(() => saveChat([{ id: "1", role: "user", content: "q" }], null)).not.toThrow();
   });
 });
