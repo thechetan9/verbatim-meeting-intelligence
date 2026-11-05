@@ -45,6 +45,11 @@ _NO_EVIDENCE_PATTERNS = re.compile(
 )
 
 
+def says_not_covered(text: str) -> bool:
+    """True if the answer states that the meetings don't contain the requested information."""
+    return bool(_NO_EVIDENCE_PATTERNS.search(text))
+
+
 def validate_question(question: str, max_chars: int) -> str:
     q = (question or "").strip()
     if not q:
@@ -88,7 +93,7 @@ def check_answer(text: str, registry: EvidenceRegistry) -> AnswerCheck:
         text = text.replace(f"[{k}]", "")
     if valid:
         grounding = Grounding.GROUNDED
-    elif _NO_EVIDENCE_PATTERNS.search(text):
+    elif says_not_covered(text):
         grounding = Grounding.NO_EVIDENCE
     else:
         grounding = Grounding.UNSUPPORTED
