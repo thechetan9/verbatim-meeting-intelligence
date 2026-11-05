@@ -1,33 +1,27 @@
-# Decision log
+# Architectural Decision Log
 
-Short records of the choices that shaped Verbatim: what I considered, what I picked, and what
-would make me change my mind. Numbers come from `backend/evals/` (24 labelled questions over the
-4 synthetic meetings), so they are directional, not statistically strong.
+This document records the core technical choices behind Verbatim, the alternatives I evaluated, and what would trigger a change as the system scales. Retrieval and answer-quality metrics come from `backend/evals/` (24 retrieval queries and 28 end-to-end questions across the 4 sample meetings), so I treat them as directional benchmarks to prevent regressions rather than statistically large guarantees.
 
 ---
 
-## D1. Use case: Meeting Intelligence (option 3)
+## D1. Problem choice: Meeting Intelligence (Option 3)
 
-**Considered:** chat-with-docs, code docs assistant, meeting intelligence, career assistant.
-**Chose:** meeting intelligence.
-**Why:** it has the most interesting retrieval problem of the four. Transcripts are conversations, not
-documents: the answer to a question is often spread across two speakers, decisions get revised in
-later meetings, and "who said it, when" matters as much as "what". It also maps directly onto the
-life-sciences work Newpage does (steering committees, governance reviews, sprint planning), so the
-sample data is a clinical-trial team.
-**Trade-off:** messier input (formats, speaker labels) than a PDF corpus, so more parsing work.
+- **Options considered:** Chat with Docs (Option 1), Code Documentation Assistant (Option 2), Meeting Intelligence (Option 3), Career Intelligence Assistant (Option 4).
+- **Decision:** Option 3 (Meeting Intelligence), including the audio-to-transcript bonus.
+- **Reasoning:** Spoken conversations create a much more interesting retrieval and reasoning problem than static PDFs. In real meetings, context splits across speaker turns, decisions made in week 1 get reversed in week 3, and attributing *who* said *what* and *when* is critical. I modeled the sample dataset around a clinical-trial operations team (steering committees, vendor reviews, safety syncs) because it reflects the regulated life-sciences workflows Newpage builds for.
+- **Trade-off:** Handling messy transcript layouts (`.txt` variants, WebVTT, SRT, and raw audio) took more upfront ingestion work than parsing standard markdown or PDF files.
 
-## D2. Chunking: whole speaker turns, ~180 words, 1-turn overlap, contextual header
+---
 
-**Considered:** fixed token windows; one chunk per turn; turn-windows of various sizes.
-**Chose:** windows of whole turns (target 180 words, hard max 320), never splitting a turn unless it is
-a monologue longer than the max (then split on sentences). One turn of overlap between windows. A
-silence > 90 s closes a window (cheap topic-boundary signal). Each chunk's indexed text starts with
-`Meeting: <title> (<date>) | <time range> | Speakers: ...`.
+## D2. Chunking strategy: speaker-turn windows (~180 words, 1-turn overlap, metadata header)
 
-**Measured** (hybrid retrieval, `evals/retrieval_eval.py --target-words N --overlap M`):
+- **Options considered:** Fixed token windows (splitting mid-sentence), single speaker turns per chunk, and multi-turn windows across varying word budgets.
+- **Decision:** Group whole speaker turns up to a target of **180 words** (hard cap at 320 words; only split a single turn on sentence boundaries if someone speaks an unusually long monologue). Keep a **1-turn overlap** between adjacent chunks, force a chunk break on pauses longer than **90 seconds**, and prepend a contextual header to every chunk before indexing:
+  `Meeting: <title> (<date>) | <time range> | Speakers: ...`
 
-| target words | overlap | chunks | hit@1 | hit@3 | MRR |
+**Benchmark results** (`uv run python -m evals.retrieval_eval --target-words N --overlap M`):
+
+| Target words | Turn overlap | Total chunks | Hit@1 | Hit@3 | MRR |
 |---|---|---|---|---|---|
 | 60 | 0 | 37 | 0.58 | 0.75 | 0.709 |
 | 60 | 1 | 54 | 0.58 | 0.79 | 0.705 |
@@ -36,113 +30,88 @@ silence > 90 s closes a window (cheap topic-boundary signal). Each chunk's index
 | **180** | **1** | **15** | **0.75** | **0.96** | **0.858** |
 | 300 | 1 | 10 | 0.71 | 0.88 | 0.821 |
 
-**Takeaways:** tiny chunks lose the question/answer pairing; overlap matters a lot at this size (an
-answer at the start of a window loses its question without it); bigger chunks start to dilute the
-embedding and send more tokens to the LLM. 180 words ≈ 250 tokens + header, comfortably inside
-bge-small's 512-token limit.
-**Revisit when:** meetings get much longer (topic segmentation by an LLM or by embedding drift
-would beat a silence heuristic) or the corpus grows enough that the eval set needs to grow too.
+- **Why this works:** Very small windows (60 words) separate a question from its answer in back-and-forth dialogue. At 180 words, dropping the 1-turn overlap causes Hit@1 to drop from `0.75` to `0.42` because answers landing on the first turn of a new window lose the preceding prompt. At 300 words, multiple topics blur into a single vector and inflate LLM context tokens. ~180 words plus the header lands around 250 tokens, well inside `bge-small`'s 512-token window.
+- **When to revisit:** For 60–90 minute recorded meetings, I would replace the 90-second silence heuristic with embedding-drift or LLM-based topic segmentation.
 
-## D3. Retrieval: hybrid BM25 + dense, fused with RRF
+---
 
-**Considered:** dense only; BM25 only; hybrid with weighted score sum; hybrid with RRF; adding a
-cross-encoder re-ranker.
-**Chose:** BM25 (SQLite FTS5, porter stemming) + dense cosine (bge-small), merged with Reciprocal
-Rank Fusion (k=60), 25 candidates each, top 6 to the model.
+## D3. Retrieval pipeline: hybrid BM25 + dense cosine with Reciprocal Rank Fusion (RRF)
 
-| mode | hit@1 | hit@3 | MRR |
+- **Options considered:** Dense vectors only, BM25 lexical search only, a weighted score sum of BM25 + dense, RRF (k=60), and adding a cross-encoder re-ranker.
+- **Decision:** Retrieve the top 25 from SQLite FTS5 (BM25 with Porter stemming) and the top 25 by dense cosine similarity (`bge-small-en-v1.5`), apply a `0.35` cosine similarity floor to filter out pure noise, merge via **RRF (k=60)**, and pass the top 6 chunks to the agent.
+
+| Retrieval mode | Hit@1 | Hit@3 | MRR |
 |---|---|---|---|
 | BM25 only | 0.62 | 0.96 | 0.788 |
-| dense only | 0.50 | 0.92 | 0.712 |
-| **hybrid (RRF)** | **0.75** | **0.96** | **0.858** |
+| Dense only | 0.50 | 0.92 | 0.712 |
+| **Hybrid (RRF)** | **0.75** | **0.96** | **0.858** |
 
-**Why RRF rather than a weighted sum:** BM25 scores and cosine similarities are on different scales and
-BM25 scores shift as the corpus changes; RRF only uses ranks, so there is nothing to calibrate.
-**Why not a re-ranker yet:** with ~15 chunks the candidates already fit in context; a re-ranker earns
-its latency at hundreds of meetings. First thing I'd add at scale.
-**Detail:** a dense-score floor (0.35) keeps unrelated chunks from being fused in when nothing matches,
-which helps the model say "not covered" instead of answering from noise.
+- **Why RRF over a weighted score sum:** BM25 scores are unbounded and shift as corpus statistics change, whereas cosine similarity is bounded in `[-1, 1]`. Score normalization requires fragile tuning per dataset; rank-based fusion needs no calibration and handles both exact keyword lookups (protocol IDs, ticket numbers, names) and semantic paraphrases.
+- **Why no re-ranker yet:** With a small corpus, the top 6 RRF chunks already give `0.96` Hit@3 and fit comfortably in the prompt. I would add a cross-encoder (`bge-reranker-base`) over the top 30 candidates once a workspace grows to hundreds of meetings.
 
-## D4. Embeddings: BAAI/bge-small-en-v1.5, run locally (fastembed/ONNX)
+---
 
-**Considered:** OpenAI `text-embedding-3-small`, Gemini embeddings, Voyage, local bge-small.
-**Chose:** local bge-small (384-d, ~67 MB, CPU).
-**Why:** transcript text never leaves the service just to be indexed (only retrieved snippets reach the
-LLM, which matters for health-adjacent content); zero cost and no rate limits for bulk ingest;
-deterministic, so the retrieval eval runs in CI without secrets.
-**Trade-off:** English-only and weaker than large API models on subtle paraphrase. Hybrid search
-covers part of that gap. Swapping is one class behind the `Embedder` protocol.
+## D4. Embedding model: local `BAAI/bge-small-en-v1.5` (via FastEmbed / ONNX)
 
-## D5. Storage / "vector DB": SQLite (FTS5 + embeddings as blobs), exact search in numpy
+- **Options considered:** OpenAI `text-embedding-3-small`, Gemini embeddings, Voyage AI, and local `bge-small-en-v1.5`.
+- **Decision:** Run `bge-small-en-v1.5` (384 dimensions, ~67 MB ONNX model) locally on CPU.
+- **Reasoning:**
+  1. **Privacy and data minimization:** Raw transcripts are indexed entirely in-process; the external LLM API only ever sees the small retrieved excerpts during Q&A.
+  2. **No external dependencies for CI and search:** The Docker image bakes the model weights in at build time, so ingestion, search, and the CI retrieval gate run offline, without API keys or rate limits, and deterministically.
+- **When to revisit:** If multilingual transcripts become a requirement, swap in a multilingual model behind the `Embedder` protocol, wired in `container.py`.
 
-**Considered:** Chroma, Qdrant, Pinecone, pgvector, LanceDB, SQLite.
-**Chose:** SQLite for everything (meetings, turns, chunks, FTS5 index, vectors).
-**Why:** one file, zero extra services, `docker compose up` just works. At meeting scale (thousands of
-chunks) exact cosine over an in-memory matrix takes milliseconds and is more accurate than ANN.
-FTS5 gives a real BM25 index, so hybrid search costs nothing extra.
-**Production path:** Postgres with pgvector (HNSW) + full-text search behind the same `MeetingStore`
-interface; adds tenancy (row-level security) and concurrent writers. OpenSearch if corpus or query
-volume gets large.
+---
 
-## D6. LLM: Gemini 3.5 Flash, chosen by eval, with a fallback chain
+## D5. Storage layer: single-node SQLite (FTS5 + BLOB vectors + in-memory exact cosine)
 
-**Considered:** Gemini 3.8 Flash / 3.5 Flash / 3.1 Flash-Lite / 3.1 Pro, Claude Sonnet, a local model.
-**How it went:** I started on `gemini-2.5-flash`. The first live smoke test returned 404: it is retired
-for new projects. On the free tier, the newer flash models allowed only 20 requests per day and 3.8
-Flash was often overloaded (503). Two changes came out of that: a **fallback chain** in the adapter
-(retry once, then the next model, only before any output has streamed, sticky per chat), and a
-**per-model answer eval** so the default is chosen on data.
+- **Options considered:** Chroma, Qdrant, pgvector, LanceDB, Pinecone, and SQLite.
+- **Decision:** Store meetings, utterances, chunks, the FTS5 index, and float32 vector blobs in a single SQLite database, computing exact cosine similarity in NumPy.
+- **Reasoning:** For a local reviewer setup, `docker compose up` should start cleanly without orchestrating a separate vector database container. At meeting-corpus scale (thousands of chunks), an exact matrix product in NumPy takes milliseconds and avoids approximate-nearest-neighbour recall loss.
+- **Production upgrade path:** Implement a PostgreSQL version (`pgvector` HNSW + native `tsvector` full-text search) behind the existing `MeetingStore` interface, enabling multi-tenant row-level security (RLS) and concurrent writes.
 
-| model | correct facts | refusals | p50 latency |
+---
+
+## D6. LLM selection and resilience: Gemini 3.5 Flash + automatic fallback chain
+
+- **Options considered:** Gemini 3.8 Flash, Gemini 3.5 Flash, Gemini 3.1 Flash-Lite, Claude Sonnet, and local open-weight models.
+- **What happened during testing:** I initially configured `gemini-2.5-flash`, which returns `404` for newly created Google AI Studio projects. On the free tier, the newer flash models allowed very few requests per day, and `gemini-3.8-flash` intermittently returned `503` (overloaded).
+- **Decision:** I built a configurable **fallback chain** into `GeminiLLM` (retries a transient failure once, then falls back down the chain before any output has streamed) and ran `evals/answer_eval.py` across all three candidate models with fallbacks turned off:
+
+| Model | Fact accuracy | Correct refusals | Latency (p50 / p95) |
 |---|---|---|---|
-| 3.8 Flash | 25/25 | 3/3 | 5.3 s |
-| **3.5 Flash** | 25/25 | 3/3 | 3.7 s |
-| 3.1 Flash-Lite | 25/25 | 3/3 | 2.1 s |
+| `gemini-3.8-flash` | 25/25 | 3/3 | 5.3 s / 7.7 s |
+| **`gemini-3.5-flash` (default)** | **25/25** | **3/3** | **3.7 s / 5.7 s** |
+| `gemini-3.1-flash-lite` | 25/25 | 3/3 | 2.1 s / 2.5 s |
 
-**Chose:** 3.5 Flash as default; fallback order 3.1 Flash-Lite → 3.8 Flash.
-**Why:** same quality as 3.8 at lower latency. Flash-Lite is 2x faster but was the one model that
-cited meeting ids instead of evidence keys in an earlier run; with so few data points I'd rather
-keep it as the first fallback than the default. Reasoning ("thinking") is set to low: answering from
-retrieved text doesn't need long reasoning, and it costs latency.
-**Also:** native audio input powers the voice bonus. Every other component only sees the `LLM`
-protocol (`app/llm/base.py`), so trying Claude or an open model is one adapter + one eval run.
+- **Why `gemini-3.5-flash` as primary:** It matches `3.8-flash` on accuracy and citation hygiene while cutting median latency by ~30%. `3.1-flash-lite` is even faster, but in an earlier run it cited meeting ids instead of `[S#]` keys (the guardrail caught it), so I placed it first in the fallback chain rather than making it the primary model. Gemini also accepts `.m4a`/`.mp3` audio natively, which powers the transcription bonus without a separate Whisper service.
 
-## D7. Orchestration: a small hand-written tool loop, not a framework
+---
 
-**Considered:** LangGraph, LlamaIndex query engines, Google ADK, a fixed retrieve-then-answer chain.
-**Chose:** a bounded tool-calling loop (~150 lines, `app/chat/agent.py`) with two tools:
-`search_transcripts` (hybrid retrieval) and `get_meeting_insights` (pre-extracted decisions/actions).
-**Why a loop rather than a fixed chain:** questions mix two kinds of need. "What does Priya own?" is
-best served by structured data; "why did we drop Twilio?" needs the discussion; "what changed between
-the two steering meetings?" needs both, across meetings. Letting the model pick tools (and re-search
-with better terms) handles all three.
-**Why no framework:** the control flow is one loop. Owning it makes the important parts explicit and
-testable: step budget (last step forces a text answer), scope enforcement in the tool layer (not the
-prompt), per-step tracing, and citation bookkeeping. I'd reach for LangGraph when there are branches,
-human-in-the-loop pauses or durable state.
+## D7. Agent orchestration: bounded custom tool loop (~150 lines) vs. frameworks
 
-## D8. Insights extracted once at ingestion, with evidence
+- **Options considered:** LangGraph, LlamaIndex workflows, a static retrieve-then-generate pipeline, or a custom bounded loop.
+- **Decision:** A ~150-line tool-calling loop in `app/chat/agent.py` exposing two tools: `search_transcripts` and `get_meeting_insights`.
+- **Why an agentic loop over static RAG:** User queries fall into different patterns. *"What action items does Priya own?"* is best answered from structured insights; *"Why did we drop Twilio?"* requires searching dialogue; *"Which sites are we adding now, and why did that change?"* needs evidence from more than one meeting. A loop lets the model inspect the first tool output and refine its search when needed.
+- **Why no LangChain/LangGraph here:** With a single loop capped at 4 steps, writing the orchestration directly in Python keeps the step budget, the forced final-step answer, server-side meeting-scope filters, SSE progress events, and the `[S#]` citation registry transparent and easy to unit-test with the scripted `FakeLLM`. I'd reach for LangGraph when the flow needs branches, human-approval pauses, or durable state.
 
-**Chose:** one structured-output call per meeting (summary, decisions, action items with owner/due,
-open questions, topics). Every item must cite utterance numbers; invalid numbers are dropped and
-items left without evidence are discarded.
-**Why:** the most common questions ("what did we decide", "what do I owe") get instant, consistent
-answers, and the agent can reason across meetings from compact data instead of re-reading transcripts.
-Runs in the background so uploads are searchable immediately.
+---
 
-## D9. Citations as keys, verified after generation
+## D8. Background insight extraction at ingestion time
 
-**Chose:** every transcript line the model sees is labelled `[S1]`, `[S2]`...; the model cites keys, not
-quotes. After generation, keys are checked against what was actually shown; unknown keys are stripped
-and each answer is labelled `grounded`, `no_evidence` or `unsupported` (shown in the UI).
-**Why:** makes citations machine-checkable and lets the UI jump to the exact second. Free-text quotes
-would need fuzzy matching and still can't prove the model saw them.
-**Limit:** this proves the cited line exists, not that it supports the sentence. An NLI/LLM-judge
-faithfulness check per sentence is the next step (see README).
+- **Decision:** Parse and embed synchronously so uploaded files are searchable in about a second, then run a background structured-output pass to extract a meeting summary, decisions, action items (owner and due date), and open questions.
+- **Reasoning:** Pre-computing structured insights once per upload avoids re-reading full transcripts for common questions and powers the cross-meeting action-item tracker. Every extracted item must reference valid utterance numbers (`evidence`), or it is dropped before saving.
 
-## D10. Server-stateless chat with client-held history
+---
 
-**Chose:** the browser sends the last few turns with each question; the server keeps no session.
-History is trimmed to 8 messages and stale citation keys are stripped before it reaches the model.
-**Why:** horizontal scaling with no sticky sessions, nothing to expire, simpler privacy story.
-**Trade-off:** history isn't persisted across devices; fine for this scope.
+## D9. Post-generation citation verification (`[S#]` evidence registry)
+
+- **Decision:** Every transcript line returned by a tool is assigned a key (`[S1]`, `[S2]`, ...) registered in the turn's `EvidenceRegistry`. The LLM is instructed to cite only those keys. After generation, the guardrail strips any key that wasn't shown in that turn's tool output and labels the answer `grounded`, `no_evidence`, or `unsupported`.
+- **Reasoning:** Asking an LLM to copy exact quotes and timestamps leads to small formatting hallucinations and fragile fuzzy matching in the UI. Short symbolic keys let the backend verify that the cited utterance exists and let the frontend jump to the exact transcript line and timestamp on click.
+- **Limit:** This proves the cited line exists and was shown, not that it fully supports the sentence (see README section 9).
+
+---
+
+## D10. Stateless chat API with sanitized client history
+
+- **Decision:** Keep `/api/chat` stateless on the server; the browser keeps the conversation in `localStorage` and sends the last 8 turns with each request. The backend strips earlier `[S#]` tags from historical assistant messages before building the prompt.
+- **Reasoning:** Stripping old `[S#]` keys stops the model from confusing evidence keys from turn 1 with new keys assigned in turn 2, while statelessness allows horizontal scaling behind a load balancer without sticky sessions.

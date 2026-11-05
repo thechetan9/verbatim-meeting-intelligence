@@ -1,4 +1,4 @@
-# Verbatim — meeting answers, with receipts
+# Verbatim — Meeting Intelligence with Line-Level Citations
 
 Ask questions about your meetings: decisions, action items, who said what, and how things changed
 from one meeting to the next. Every answer is cited to the exact line and second it came from, and
@@ -11,7 +11,7 @@ the optional voice-to-transcript bonus.
 
 - **Ask across meetings.** "Which new trial sites are we adding?" correctly reports the *latest*
   decision (Columbus + Ann Arbor), and notes Pittsburgh dropped out after the first meeting.
-- **Receipts.** Numbered citations show speaker, timestamp and quote on hover; the answer is labelled
+- **Verified citations.** Numbered citations show speaker, timestamp and quote on hover; the answer is labelled
   *grounded*, *not covered* or *unverified* based on a post-generation citation check.
 - **Insights per meeting.** Decisions, action items (owner, due date) and open questions are extracted
   on upload, each linked to the transcript line that supports it.
@@ -274,13 +274,13 @@ was the only model that cited meeting ids instead of evidence keys (the guardrai
 one data point I kept 3.5-flash as default and put flash-lite first in the fallback chain. Switching
 is one env var (`LLM_MODEL`). ~5k tokens per question is a fraction of a cent at flash-class prices.
 
-The eval earned its keep: it found an empty-answer bug at the agent's step budget, a refusal
-detector that missed "I can only assist with...", and its own bug of hiding errored questions
-(details in [section 8](#8-how-i-used-ai-tools)). Full per-question answers: `backend/evals/results/`.
+Running the live eval harness caught three subtle bugs before submission: an empty response when
+the agent hit its 4-step budget, a refusal regex that missed "I can only assist with...", and an
+error-counting bug in the eval script itself (covered in detail in [section 8](#8-how-i-used-ai-tools)).
 
 Checks: correctness = required facts present; grounded = at least one valid citation; citation
 meeting = a citation points into the meeting that holds the answer; refusals = the unanswerable
-questions are declined. Full per-question report: `backend/evals/results/answers.md`.
+questions are declined. Full per-question reports: `backend/evals/results/answers-<model>.md`.
 
 **Honest limits of the evals:** 4 synthetic meetings and 28 questions I wrote myself, so the numbers
 show direction, not production quality. Keyword checks can miss correct paraphrases. The citation
@@ -398,97 +398,62 @@ repeated questions.
 
 ## 8. How I used AI tools
 
-I built this with **Claude Code** in VS Code as the main implementer, with me acting as the person
-who decides what to build, reviews it, and decides when it's done. Most of the code was generated;
-the decisions, the order of work and the definition of "done" were not left to the model.
+I used **Claude Code** inside VS Code to write most of the implementation code for this project, treating it the same way I do on my own production side projects: I own the system design, interfaces, and verification gates, and I use the agent to move fast on implementation, tests, and refactors.
 
-#### How the workflow ran
+#### How I structured the workflow
 
-1. **Decide before generating.** Picked the option, the stack and the key RAG choices first (see
-   `docs/DECISIONS.md`), then asked for code in small slices in dependency order: domain models →
-   parser → chunker → store → retrieval → evals → LLM adapter → agent → API → UI.
-2. **Every slice ships with tests**, and tests never call a real LLM (a scripted fake implements the
-   same interface). This is what caught most AI mistakes (examples below).
-3. **Measure, don't eyeball.** Retrieval and chunking changes were judged by the eval harness, not by
-   reading a few answers. The chunk-size table in `DECISIONS.md` is from that loop.
-4. **Quality gates in the loop.** ruff, mypy, pytest, ESLint, `tsc` and the editor's SonarLint
-   diagnostics were fed back into the session; functions over the complexity limit got refactored.
-5. **Make it repeatable.** [`CLAUDE.md`](CLAUDE.md) holds the architecture rules and conventions
-   every session must follow; [`.claude/commands/`](.claude/commands) has `/check` (all quality gates)
-   and `/retrieval-experiment` (change → measure → keep or revert). A new session, or a teammate's,
-   starts from the same rules.
+1. **Architecture and contracts before code generation.** Before prompting for feature code, I locked down the domain problem (Option 3 with clinical-trial transcripts), the storage/retrieval design (`docs/DECISIONS.md`), and the core boundaries (`LLM`, `Embedder`, `MeetingStore`) wired through a single composition root (`container.py`). Having strict interfaces up front stops the agent from coupling FastAPI routes directly to SQLite queries or SDK payloads.
+2. **Encoding rules in `CLAUDE.md` and slash commands.** If you don't give an AI coding agent persistent guardrails, every new context window drifts in style and architecture. I put the repo conventions, layer boundaries, and testing rules into [`CLAUDE.md`](CLAUDE.md), and set up repeatable workflows in [`.claude/commands/`](.claude/commands):
+   - `/check` runs the full verification suite (`ruff`, `mypy`, `pytest`, offline retrieval eval, `eslint`, `tsc`, frontend tests and build).
+   - `/retrieval-experiment` enforces a strict loop: change one retrieval parameter, run the eval harness, and revert if MRR or hit@1 drops.
+3. **Vertical slices with offline fakes.** I had Claude Code build in dependency order: domain models → parser → chunker → SQLite/FTS5 store → hybrid retriever → eval harness → Gemini adapter → agent loop → API → Next.js UI. Because every external dependency has a deterministic fake (`FakeLLM` with scripted steps, a hashing embedder), the agent could run `pytest` after every edit without burning API tokens or hitting network flakiness.
+4. **Data-driven tuning over eyeball testing.** Rather than reading two or three chat responses and guessing if chunking worked, I had the agent run 6 chunking configurations against the 24-question retrieval benchmark and log the numbers in `DECISIONS.md` before moving on to the chat layer.
 
-#### Mistakes the AI made that the process caught
+#### Where the AI stumbled (and how my checks caught it)
 
-- The parser read the Otter-style header `Dr. Lena Fischer  00:00:05` as timestamp `00:00` with the
-  text `05`. Caught by printing parsed samples; fixed with a negative look-ahead and a regression test.
-- The chunker's overlap could push a chunk past its size limit, and the "merge tiny tail" step ignored
-  long silences. Both caught by unit tests written next to the code.
-- Resetting a `ContextVar` inside a streaming generator crashed under Starlette's thread-pool
-  iteration. Caught by the SSE API test.
-- **SDK drift:** `google-genai` 2.x and `mcp` 2.x differ from what the model remembered (e.g. FastMCP
-  is now `MCPServer`). Rule: inspect the installed API before writing an adapter.
-- **Model drift:** the first default, `gemini-2.5-flash`, turned out to be retired for new projects
-  (404), and the newest flash model was intermittently overloaded (503). Found by a live smoke test,
-  not by unit tests; fixed with a model fallback chain.
-- **The eval lied, once.** The first answer-eval run excluded errored questions from its totals, so a
-  rate-limited run looked clean. Fixed: errors are counted and shown, calls are paced and retried.
-- **Empty answers.** The eval caught a case where the model wanted another search on the forced
-  final step and returned no text. Fixed with an "answer now" note before that step and a
-  "not found" fallback, plus a regression test.
-- **A correct refusal labelled "unverified".** "I can only assist with questions related to the
-  meetings" didn't match the refusal detector (it knew "help", not "assist"), so the UI would have
-  shown a warning on a correct answer. Broadened the patterns and added a test.
-- **UI:** a screenshot run showed that clicking a citation on desktop opened the mobile drawer's
-  backdrop and dimmed the page. Fixed by opening the drawer only on narrow screens.
-- Dependency hygiene: the latest `lucide-react` and `vitest` had been published days earlier; pinned
-  versions at least two weeks old instead.
+AI coding tools are great at velocity, but they regularly fail on edge cases, concurrency subtleties, and recent SDK changes. A few concrete bugs my workflow caught during this build:
 
-#### Do's
+- **Regex greediness on transcript headers:** On Otter-style transcripts (`Dr. Lena Fischer  00:00:05`), the first parser regex matched `00:00` as a `MM:SS` timestamp and treated `05` as the start of the spoken text. I caught this by inspecting parsed output on sample files and had Claude add a negative look-ahead along with a regression test.
+- **Chunker boundary math:** The initial chunker allowed the 1-turn overlap to push chunks over the word budget, and its tail-merging logic merged turns across long pauses. Unit tests asserting chunk size and silence invariants caught both immediately.
+- **Streaming generator `ContextVar` crash:** In the SSE streaming endpoint, resetting the request-ID `ContextVar` token inside the generator failed when Starlette iterated it across thread-pool boundaries. The SSE integration test caught the crash before I even opened the browser.
+- **Outdated training data on SDKs and models:** Claude Code reached for older patterns in `google-genai` 2.x and `mcp` 2.x (where `FastMCP` was replaced by `MCPServer`). It also defaulted to `gemini-2.5-flash`, which now returns `404` on new projects, while the newest model occasionally threw `503` under load. I made the agent inspect the installed package signatures directly in `.venv` before writing adapters, and added an automatic model fallback chain (`3.5-flash` → `3.1-flash-lite` → `3.8-flash`) after live smoke testing.
+- **A silent pass in the eval script:** On my first live run of `answer_eval`, rate-limited requests errored and the script excluded them from the totals, making a partial run look clean. I fixed the harness so errors are counted and shown, and added pacing + retries.
+- **Agent step-budget edge case:** During full eval runs, a query that had used its tool calls still wanted to search again on the final step and returned an empty answer once tools were disabled. The eval flagged it; I fixed it by adding a final-step instruction ("tool budget reached, answer from the evidence gathered so far") plus a safe fallback message.
+- **Overly narrow refusal regex:** When the model answered an off-topic question with *"I can only assist with questions related to the meetings"*, the guardrail marked it `unsupported` instead of `no_evidence` because the detector only knew *"help"*/*"answer"*, not *"assist"*. Expanded the refusal patterns and added test coverage.
+- **Desktop UI drawer bug & supply-chain checks:** Reviewing the UI visually showed that clicking a citation on desktop triggered the mobile drawer backdrop and dimmed the screen. I also ran `pip-audit` and `npm audit`, which prompted upgrading the frontend from Next.js 15 to 16.4.2 to clear a high-severity `postcss` advisory, while keeping package versions pinned to releases at least two weeks old.
 
-- Give the assistant a written contract (CLAUDE.md) and small, testable tasks with clear interfaces.
-- Keep a fake for every external dependency so the assistant can verify its own work offline.
-- Paste real failures back verbatim; ask for the fix *and* a regression test.
-- Use it for breadth (boilerplate, test cases, UI states, refactors), keep depth (architecture,
-  trade-offs, what to measure) as a human decision.
+#### My do's and don'ts with AI coding assistants
 
-#### Don'ts
+**Do's:**
 
-- Don't accept "done" without the gates passing. Don't let it edit an eval or threshold to go green.
-- Don't trust its memory of fast-moving SDKs or package versions; check what's installed.
-- Don't let it add frameworks or services "for later".
-- Don't publish its prose as your reasoning. Decisions in this repo are written to be defended in
-  a review.
+- **Do front-load the design and rules.** Spend time on `CLAUDE.md`, strict types (`mypy`, TypeScript strict mode, Pydantic), and clean interfaces before letting the agent write implementation code.
+- **Do give the agent fast, offline feedback loops.** When `pytest`, linters, and SonarLint diagnostics run in seconds without API keys, you can make the agent self-correct before you ever review the diff.
+- **Do verify against live packages and real data.** Make the agent read installed library source/types when working with fast-moving SDKs like `mcp` or `google-genai`.
+- **Do read every diff like a PR review.** Treat the assistant like a fast junior-to-mid engineer: great at scaffolding and test permutations, but prone to subtle logic shortcuts.
+
+**Don'ts:**
+
+- **Don't let the agent weaken a test or eval threshold to make CI pass.** If an eval or test fails, fix the implementation or explicitly discuss why the test assumption was wrong.
+- **Don't let it pull in heavy frameworks "just in case".** Keeping the agent loop to ~150 lines of plain Python instead of pulling in LangChain made debugging step budgets, SSE events, and citation keys much simpler.
+- **Don't trust green unit tests alone for LLM features.** Unit tests validate plumbing; you still need an eval harness and live smoke tests to catch model deprecations, rate limits, and prompt edge cases.
 
 ---
 
 ## 9. What I'd do with more time
 
-#### Next, in order of value
+#### What I'd build next (by impact)
 
-1. **Sentence-level faithfulness check.** Today I verify that cited lines exist and were shown, not that
-   they support the sentence. Add an NLI model or a small LLM judge per sentence, calibrated against a
-   few dozen human labels, and show "partially supported" in the UI.
-2. **A real eval set.** 4 synthetic meetings and 28 questions is enough to compare options, not to
-   claim quality. I'd collect de-identified real meetings, have users label answers, and track
-   answer quality per release.
-3. **Action-item and decision tracking across meetings.** Link "Marcus: Ann Arbor contract by Nov 7"
-   to the next meeting where it's discussed and show status (done / slipped / dropped). This is the
-   feature users would come back for.
-4. **Speaker identity.** Map "Speaker 1" from audio and nicknames ("Anita", "Dr. Rao") to one
-   person; the speaker filter is substring matching today.
-5. **Retrieval at scale:** a cross-encoder re-ranker, query rewriting for vague follow-ups, and LLM- or
-   embedding-based topic segmentation for long meetings instead of the silence heuristic.
-6. **Production basics** from section 6: auth, tenancy, Postgres/pgvector, a job queue, OTel export.
-7. **Compare models on the answer eval** (Claude Sonnet vs Gemini Flash vs a small open model) for
-   quality, latency and cost per question, then route by question type.
+1. **Claim-level faithfulness verification:** Right now, my post-generation guardrail proves that `[S4]` is a real utterance that was actually retrieved and shown to the model in that turn, which eliminates hallucinated IDs. However, it doesn't verify that the text of `[S4]` logically entails the specific claim in the sentence. With more time, I'd add a fast NLI pass or lightweight judge check per cited sentence to flag partial support.
+2. **Cross-meeting state resolution for action items and decisions:** The tracker already groups action items from every meeting by person. The real product value for clinical or engineering teams is longitudinal tracking: automatically linking an action item created in one meeting ("Marcus to initiate the Ann Arbor site contract by Nov 7") to the follow-up meeting where it's reported done or delayed.
+3. **Broader, nastier evaluation dataset:** My 28-question eval set over 4 synthetic meetings was enough to compare BM25 vs. dense vs. RRF and catch regressions, but synthetic data is cleaner than real life. Next, I'd test against messy, long-form transcripts (1-hour+ calls with crosstalk, interruptions, and ASR errors) and swap keyword assertions for rubric-based grading calibrated against human labels.
+4. **Smarter entity & speaker resolution:** Audio diarization can output generic labels (`Speaker 1`), and text transcripts mix first names, full names, and titles (`Anita`, `Dr. Rao`). A proper entity-resolution pass at ingestion time would make speaker filtering and ownership tracking more reliable than today's name matching.
+5. **Two-stage retrieval for larger workspaces:** With a handful of meetings, SQLite FTS5 + exact cosine + RRF runs in a few milliseconds. Once a team has hundreds of hours of transcripts, I'd add metadata pre-filtering (date ranges, participants), a cross-encoder re-ranker (`bge-reranker-base`) over the top 30 chunks, and topic-shift segmentation instead of relying purely on word counts and silence gaps.
+6. **Production hardening:** Move storage to Postgres + `pgvector` with tenant-level RLS, push audio transcription and insight extraction onto a proper async queue (SQS/Celery) instead of an in-process thread pool, and wire the existing trace spans into an OpenTelemetry exporter (Langfuse / CloudWatch).
 
-#### What I'd do differently
+#### What I'd do differently if starting over
 
-- Write the eval set first. I wrote it after the first version of retrieval; having it from the start
-  would have made the early chunking choices measured instead of reasoned.
-- Spend less time on input-format coverage and more on cross-meeting features; real teams mostly
-  export VTT from Zoom/Teams anyway.
+- **Build `evals/` before writing the first retriever:** I built the initial chunker and retriever first and wrote `dataset.yaml` right after. Writing the evaluation questions immediately after creating the sample transcripts would have given me a baseline score from minute one.
+- **Spend less time on regexes for transcript layouts:** Supporting Otter, SRT, WebVTT, and several `.txt` timestamp styles was fun to test-drive, but most enterprise teams export WebVTT from Zoom/Teams or upload raw audio. I'd keep VTT + audio and spend that extra time on cross-meeting decision linking.
 
 ---
 
