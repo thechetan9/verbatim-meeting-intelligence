@@ -15,7 +15,10 @@ the optional voice-to-transcript bonus.
   *grounded*, *not covered* or *unverified* based on a post-generation citation check.
 - **Insights per meeting.** Decisions, action items (owner, due date) and open questions are extracted
   on upload, each linked to the transcript line that supports it.
-- **See the agent work.** Tool calls, timings, tokens and cost for every answer.
+- **People view.** Each participant's share of the talking, turns and action items; click anyone
+  to read only what they said.
+- **See the agent work.** Tool calls, timings, tokens and cost for every answer. Conversations
+  survive a page reload (kept in the browser; meetings live in the backend database).
 - **Inputs.** `.txt` (several common layouts), WebVTT (Zoom/Teams exports), SRT, or an audio file
   (transcribed with speaker labels and timestamps by Gemini).
 - **Also an MCP server.** The same tools are exposed over MCP, so Claude Code / Claude Desktop can
@@ -480,6 +483,8 @@ the decisions, the order of work and the definition of "done" were not left to t
 | Insights extracted per meeting | Hover a citation |
 |---|---|
 | ![Insights panel: summary, decisions, action items with owners and due dates](docs/screenshots/insights.png) | ![Citation hover card with speaker, timestamp and quote](docs/screenshots/citation-hover.png) |
+| **People: share of talk, turns, action items** | **Click a person to read only their lines** |
+| ![People section with talk share per participant](docs/screenshots/people.png) | ![Transcript filtered to one speaker](docs/screenshots/person-filter.png) |
 | **Refuses when the meetings don't cover it** | **Mobile layout** |
 | ![Answer labelled 'Not covered in these meetings'](docs/screenshots/not-covered.png) | ![Mobile view](docs/screenshots/mobile.png) |
 
