@@ -29,7 +29,7 @@ the optional voice-to-transcript bonus.
 - **Also an MCP server.** The same tools are exposed over MCP, so Claude Code / Claude Desktop can
   query the meetings directly.
 
-Demo video: _link added on submission_ · More screenshots: [below](#screenshots)
+**▶ Demo video (Loom):** <https://www.loom.com/share/2c1856a17c6c4ea2b9ec5eb09c1f459a> · More screenshots: [below](#screenshots)
 
 ---
 
