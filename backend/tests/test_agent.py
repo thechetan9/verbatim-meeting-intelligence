@@ -176,3 +176,13 @@ def test_final_step_gets_budget_note_and_empty_answer_falls_back(container, sett
     assert container.llm.notes and "Tool budget reached" in container.llm.notes[-1]
     assert done["answer"].startswith("I couldn't find an answer")
     assert done["grounding"] == "no_evidence"
+
+
+def test_off_topic_declines_are_recognised_as_refusals(container):
+    reg = EvidenceRegistry()
+    for text in [
+        "I can only help with questions about the loaded meetings.",
+        "I can only assist with questions related to the loaded meetings.",
+        "The meetings don't mention a Q1 marketing budget.",
+    ]:
+        assert check_answer(text, reg).grounding == Grounding.NO_EVIDENCE, text

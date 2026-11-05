@@ -40,7 +40,7 @@ _NO_EVIDENCE_PATTERNS = re.compile(
     r"(couldn'?t|could not|can'?t|cannot|didn'?t|did not|unable to) find|"
     r"(don'?t|do not|doesn'?t|does not) (cover|mention|contain|include|say)|"
     r"(no|not any) (information|mention|evidence|record)|not (mentioned|discussed|covered)|"
-    r"only (help|answer) (with )?questions about",
+    r"only (help|answer|assist)( you)? (with )?(questions )?(about|related to|regarding|on) ",
     re.I,
 )
 
