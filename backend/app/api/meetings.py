@@ -10,7 +10,7 @@ from app.api.schemas import MeetingDetail, SamplesOut, TranscriptOut
 from app.container import Container
 from app.domain.models import Meeting
 from app.ingestion.parser import TranscriptParseError
-from app.ingestion.service import DuplicateMeetingError, content_fingerprint
+from app.ingestion.service import DuplicateMeetingError, content_fingerprint, infer_title
 from app.ingestion.transcribe import AUDIO_MIME_TYPES, transcribe_audio
 from app.llm.base import LLMError
 
@@ -87,7 +87,7 @@ def upload_meeting(
             c,
             content,
             f"{Path(filename).stem}.txt",
-            title or Path(filename).stem,
+            title or infer_title("", filename),
             date,
             fingerprint,
         )

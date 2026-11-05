@@ -138,3 +138,23 @@ def test_old_database_without_hash_column_is_migrated(tmp_path):
     con.close()
     store = MeetingStore(db)
     assert store.find_by_hash("abc") is None  # column added, query works
+
+
+def test_audio_upload_is_transcribed_titled_and_deduplicated(client, container):
+    from app.ingestion.transcribe import AudioTranscript, Segment
+
+    container.llm.json_responses[AudioTranscript] = AudioTranscript(
+        segments=[
+            Segment(start="00:00", speaker="Laura", text="This is the kickoff meeting."),
+            Segment(start="00:28", speaker="David", text="Hi, I'm David, the industrial designer."),
+        ]
+    )
+    audio = {
+        "file": ("2026-11-05_remote-control-design-kickoff.m4a", b"fake-audio-bytes", "audio/mp4")
+    }
+    r = client.post("/api/meetings", files=audio)
+    assert r.status_code == 201, r.text
+    m = r.json()
+    assert m["title"] == "Remote Control Design Kickoff" and m["date"] == "2026-11-05"
+    assert m["speakers"] == ["Laura", "David"]
+    assert client.post("/api/meetings", files=audio).status_code == 409  # before transcribing again
