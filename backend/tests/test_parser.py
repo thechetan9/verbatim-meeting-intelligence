@@ -75,7 +75,7 @@ def test_rejects_unparseable(content):
 
 
 def test_all_sample_transcripts_parse():
-    files = sorted(SAMPLE_DIR.glob("*.*"))
+    files = sorted(p for p in SAMPLE_DIR.iterdir() if p.suffix in {".txt", ".vtt", ".srt"})
     assert len(files) == 4
     for f in files:
         t = parse_transcript(f.read_text(), f.name)
