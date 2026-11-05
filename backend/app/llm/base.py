@@ -19,6 +19,19 @@ T = TypeVar("T", bound=BaseModel)
 class LLMError(RuntimeError):
     """Raised for provider failures (auth, quota, timeouts, malformed output)."""
 
+    def __init__(self, message: str, code: int | None = None):
+        super().__init__(message)
+        self.code = code  # provider HTTP status when known (429 rate limit, 503 overloaded...)
+
+
+def user_message(exc: LLMError) -> str:
+    """A safe, actionable message for end users (provider details stay in the logs)."""
+    if exc.code == 429:
+        return "The language model's rate limit was reached. Please wait a minute and try again."
+    if exc.code in (500, 502, 503, 504):
+        return "The language model is overloaded right now. Please try again shortly."
+    return "The language model request failed. Please try again."
+
 
 @dataclass(frozen=True)
 class ToolSpec:
@@ -72,6 +85,10 @@ class ChatSession(Protocol):
         ...
 
     def add_tool_results(self, results: list[tuple[ToolCall, dict[str, Any]]]) -> None: ...
+
+    def add_user_note(self, text: str) -> None:
+        """Append a short instruction from the orchestrator (not the end user) to the conversation."""
+        ...
 
 
 class LLM(Protocol):

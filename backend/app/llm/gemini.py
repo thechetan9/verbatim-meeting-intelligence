@@ -57,7 +57,7 @@ def _usage(meta: types.GenerateContentResponseUsageMetadata | None, model: str) 
 
 
 def _error(exc: errors.APIError) -> LLMError:
-    return LLMError(f"Gemini request failed ({exc.code}): {exc.message}")
+    return LLMError(f"Gemini request failed ({exc.code}): {exc.message}", code=exc.code)
 
 
 @dataclass
@@ -180,6 +180,15 @@ class GeminiChatSession:
                 part.function_response.id = call.id
             response_parts.append(part)
         self._contents.append(types.Content(role="user", parts=response_parts))
+
+    def add_user_note(self, text: str) -> None:
+        last = self._contents[-1] if self._contents else None
+        if last is not None and last.role == "user" and last.parts is not None:
+            last.parts.append(types.Part.from_text(text=text))  # keep user/model turns alternating
+        else:
+            self._contents.append(
+                types.Content(role="user", parts=[types.Part.from_text(text=text)])
+            )
 
 
 class GeminiLLM:

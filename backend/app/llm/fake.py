@@ -41,6 +41,9 @@ class FakeChatSession:
         self.tool_results.extend(results)
         self._llm.tool_results.extend(results)
 
+    def add_user_note(self, text: str) -> None:
+        self._llm.notes.append(text)
+
 
 class FakeLLM:
     model = "fake-llm"
@@ -58,6 +61,7 @@ class FakeLLM:
         self.histories: list[list[ChatTurn]] = []
         self.tool_results: list[tuple[ToolCall, dict[str, Any]]] = []
         self.json_prompts: list[str] = []
+        self.notes: list[str] = []
 
     def start_chat(
         self, system: str, history: list[ChatTurn], message: str, tools: list[ToolSpec]
