@@ -1,0 +1,55 @@
+[project]
+name = "verbatim"
+version = "0.1.0"
+description = "Meeting intelligence assistant: ask questions about meeting transcripts and get answers cited to the exact moment."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.8",
+    "pydantic-settings>=2.4",
+    "python-multipart>=0.0.9",
+    "google-genai>=1.20",
+    "fastembed>=0.4",
+    "numpy>=1.26",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+mcp = [
+    "mcp>=2.3,<3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "httpx>=0.27",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "types-pyyaml>=6.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+# E501: the formatter owns line length (long strings/regexes are left intact on purpose).
+# RUF001: en/em dashes in regexes are intentional (real transcripts use them as separators).
+# SIM108: prefer explicit if/else over nested ternaries for readability.
+ignore = ["E501", "RUF001", "SIM108"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+ignore_missing_imports = true
+check_untyped_defs = true

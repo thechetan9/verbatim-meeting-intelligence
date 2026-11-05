@@ -1,0 +1,31 @@
+CARDIA-2 Trial Steering Committee (follow-up) — 27 October 2026
+(Synthetic transcript created for demo and evaluation purposes. All people, sites and data are fictional.)
+
+[00:00:03] Dr. Anita Rao: Welcome back. Agenda: enrollment and new sites, DSMB outcome, the protocol amendment, and data completeness.
+[00:00:12] Marcus Lee: Enrollment first. We're at 131 of 300. Better pace this month, 19 new patients, but still behind plan.
+[00:00:24] Marcus Lee: Good news on Cleveland. Site 14 finally got IRB approval on October 22. They start screening next week.
+[00:00:35] Dr. Anita Rao: Excellent. And the two new sites?
+[00:00:39] Marcus Lee: Mixed. Columbus returned the feasibility questionnaire and they're a yes. Pittsburgh declined. They lost their cardiology research coordinator and don't have capacity this year.
+[00:00:55] Dr. Anita Rao: That's disappointing. Do we have a replacement?
+[00:01:00] Marcus Lee: Yes, Ann Arbor. They weren't on our original list but their heart failure clinic is big and they can start within eight weeks of contract signature.
+[00:01:14] Grace Thompson: On budget, the sponsor confirmed funding for two new sites on October 15. The approval is for two sites, not for specific locations, so swapping Pittsburgh for Ann Arbor is fine financially.
+[00:01:29] Dr. Anita Rao: Then let's update the decision. We proceed with Columbus and Ann Arbor as the two new sites. Pittsburgh is off.
+[00:01:38] Marcus Lee: I'll initiate the Ann Arbor site contract by November 7. Columbus contract is already in legal review.
+[00:01:47] Dr. Anita Rao: DSMB. Priya, you were on the closed session call.
+[00:01:52] Priya Nair: The DSMB met on October 24 for the interim safety review. No safety concerns, no imbalance in serious adverse events between arms. Their recommendation is to continue the trial unchanged.
+[00:02:09] Dr. Anita Rao: That clears the way for the amendment. Tom?
+[00:02:13] Tom Becker: Version 3.1 is drafted, with the LVEF change to 40 percent or below and Priya's pre-specified subgroup analysis. Since the DSMB had no concerns, I propose we submit to the IRB on November 3.
+[00:02:30] Dr. Anita Rao: Last time I asked whether we still need the amendment if the new sites come online. Marcus?
+[00:02:37] Marcus Lee: I re-ran the projection with Cleveland, Columbus and Ann Arbor. Without the amendment we finish enrollment in August 2027. With the amendment, around June 2027.
+[00:02:52] Dr. Anita Rao: So the amendment is worth two months. Decision: we submit protocol amendment 3.1 to the IRB on November 3. And our official enrollment completion target moves from March 2027 to June 2027.
+[00:03:08] Tom Becker: I'll submit on November 3 and notify the FDA in parallel.
+[00:03:14] Dr. Anita Rao: Data completeness. Priya?
+[00:03:18] Priya Nair: The app team shipped the Android background sync fix, PRJ-2291, on October 20. In the week since, the share of patients with data gaps longer than three days dropped from 18 percent to 6 percent.
+[00:03:36] Dr. Anita Rao: That's a big improvement. What's driving the remaining 6 percent?
+[00:03:41] Priya Nair: Mostly patients who haven't updated the app yet. Coordinators are calling them. I'll set up a weekly data completeness dashboard so we can track it site by site.
+[00:03:55] Sofia Alvarez: Quick update from the app side. Because of the usability findings, version 1.2 now ships on November 17, and the SMS reminders go live in that same release. The IRB approved the generic reminder wording on October 23.
+[00:04:12] Dr. Anita Rao: Good. Any risks I should know about?
+[00:04:16] Priya Nair: One. The amendment changes eligibility mid-study, so the statistical analysis plan needs a formal update. The statistician needs at least two weeks.
+[00:04:28] Dr. Anita Rao: Priya, please coordinate the SAP update with the statistician so it's ready before the first patient is enrolled under 3.1.
+[00:04:36] Priya Nair: Will do. I'll have the SAP update ready by November 21.
+[00:04:42] Dr. Anita Rao: Thanks all. Next steering committee is November 24.

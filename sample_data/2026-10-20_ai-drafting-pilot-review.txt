@@ -1,0 +1,68 @@
+Medical Information AI Drafting Pilot — Go/No-Go Review — 20 October 2026
+Synthetic transcript created for demo and evaluation purposes. All people and data are fictional.
+
+Dr. Lena Fischer  00:00:05
+Thanks for joining. The purpose today is a go or no-go decision on the AI drafting pilot for medical information requests. Arjun, can you walk us through the evaluation results?
+
+Arjun Mehta  00:00:18
+Sure. We ran the assistant against 200 historical inquiries from healthcare professionals. For each one it drafted a response using our standard response documents, and three medical information specialists graded the drafts blind.
+
+Arjun Mehta  00:00:41
+Headline numbers: 92 percent of drafts were accepted with minor edits or none. Faithfulness to the source documents scored 0.94. Average latency was 14 seconds and cost was about 6 cents per inquiry.
+
+Kofi Mensah  00:01:02
+Wait, sorry, can I ask how long it took the specialists to edit the drafts?
+
+Arjun Mehta  00:01:09
+Median editing time was four minutes, versus about twenty-five minutes to write a response from scratch. So the time saving is large.
+
+Rachel Owens  00:01:22
+Before we celebrate, I need to talk about the failures. In three of the 200 cases the draft cited a study that does not exist. A fabricated reference. For regulated medical content that is a critical finding. One fabricated citation reaching a physician would be a reportable quality event.
+
+Dr. Lena Fischer  00:01:44
+Three out of 200 is one and a half percent. Arjun, why did that happen?
+
+Arjun Mehta  00:01:52
+In those cases the retrieved documents didn't fully answer the question, and the model filled the gap with a plausible-looking reference. The fix is twofold. First, restrict retrieval to approved standard response documents only. Second, add a verification step: every reference in a draft must match an ID in the approved reference library, or the draft is blocked.
+
+Rachel Owens  00:02:18
+Verification has to be deterministic, not another model checking the model.
+
+Arjun Mehta  00:02:25
+Agreed. It's a simple lookup against the reference library. Exact ID match, no model involved.
+
+Kofi Mensah  00:02:34
+There's another category we haven't tested. Off-label questions. Physicians regularly ask about uses that aren't in the approved label. We can't proactively promote off-label use, so those always need a specialist.
+
+Dr. Lena Fischer  00:02:52
+Then the assistant must never draft an answer to an off-label inquiry. It should detect it, decline, and route the inquiry to a human specialist. Let's make that a firm rule.
+
+Arjun Mehta  00:03:04
+That's doable. I'll add an off-label classifier as a guardrail before drafting, and anything flagged goes straight to the specialist queue.
+
+Dr. Lena Fischer  00:03:15
+So here's my decision. It's a no-go for any autonomous use. It's a go for a limited human-in-the-loop pilot: drafts only, every draft reviewed and signed off by a specialist, three specialists, four weeks. And the pilot doesn't start until the reference verification is in place.
+
+Rachel Owens  00:03:38
+I can support that, provided there is an SOP and a full audit trail: who reviewed it, what they changed, which model version produced the draft.
+
+Dr. Lena Fischer  00:03:50
+Rachel, can you write that SOP?
+
+Rachel Owens  00:03:53
+Yes. I'll write the SOP for AI-assisted drafting, including the audit trail requirements, by November 3.
+
+Arjun Mehta  00:04:02
+And I'll implement the reference verification guardrail and the off-label routing by October 30.
+
+Kofi Mensah  00:04:10
+I'll put together the next evaluation set. Fifty new inquiries, deliberately including at least ten off-label questions, so we can measure whether the classifier catches them.
+
+Dr. Lena Fischer  00:04:24
+Good. I'll present the results and this pilot design to the governance board on November 10.
+
+Rachel Owens  00:04:31
+One open question: do we need to tell the physician that the response was drafted with AI assistance? I don't think regulations require it yet, but our transparency policy might.
+
+Dr. Lena Fischer  00:04:44
+Let's take that to the governance board as well. Thanks everyone, good work.

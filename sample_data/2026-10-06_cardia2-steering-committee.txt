@@ -1,0 +1,40 @@
+CARDIA-2 Trial Steering Committee — 6 October 2026
+(Synthetic transcript created for demo and evaluation purposes. All people, sites and data are fictional.)
+
+[00:00:04] Dr. Anita Rao: Good morning everyone. Let's get started. Main agenda today is enrollment, the wearable data issue, and whether we need to amend the protocol.
+[00:00:15] Marcus Lee: Sounds good. I'll start with the numbers. We are at 112 patients enrolled out of 300. Our plan said we should be at 150 by the start of October, so we are about 38 patients behind.
+[00:00:34] Dr. Anita Rao: That's roughly a quarter behind plan. Which sites are dragging?
+[00:00:41] Marcus Lee: Most sites are close to target. The real problem is Site 14 in Cleveland. They have enrolled zero patients because their IRB approval is still pending. It has been stuck for eleven weeks.
+[00:01:02] Tom Becker: I chased the Cleveland IRB last week. They asked for a revised informed consent form in plain language. We sent it Friday, so I expect a decision in two to three weeks.
+[00:01:20] Dr. Anita Rao: Even if Cleveland comes online, we won't close the gap with existing sites alone. Marcus, what are the options?
+[00:01:31] Marcus Lee: Two options. Option one, we add new sites. Option two, we widen the eligibility criteria so more of the patients we already screen qualify. Honestly I think we need both.
+[00:01:50] Dr. Anita Rao: Let's take new sites first. Do we have candidates?
+[00:01:56] Marcus Lee: Columbus and Pittsburgh both have strong heart failure clinics and they participated in CARDIA-1. Each could realistically enroll eight to ten patients a month once activated.
+[00:02:15] Grace Thompson: From the finance side, each new site costs about 240 thousand dollars over the life of the trial including startup fees. Two sites fits within the contingency budget, but I need to confirm with the sponsor before we commit.
+[00:02:36] Dr. Anita Rao: Okay. Then the decision is: we go ahead and add two new sites, Columbus and Pittsburgh, subject to Grace confirming the budget with the sponsor.
+[00:02:48] Grace Thompson: Understood. I'll have an answer from the sponsor by October 15.
+[00:02:55] Marcus Lee: And I'll send feasibility questionnaires to both Columbus and Pittsburgh. I can get those out and back by October 17.
+[00:03:08] Dr. Anita Rao: Good. Now eligibility. Tom, what would an amendment involve?
+[00:03:14] Tom Becker: The proposal on the table is to relax the ejection fraction cutoff from LVEF of 35 percent or below to 40 percent or below. Screening logs show about a third of our screen failures are patients with an LVEF between 36 and 40.
+[00:03:36] Dr. Anita Rao: Clinically I'm comfortable with 40. Those patients still have reduced ejection fraction and they benefit from remote monitoring.
+[00:03:47] Tom Becker: It is a substantial amendment, so it needs IRB approval at every site and a submission to the FDA. Realistically six weeks from submission to the first patient enrolled under the new criteria.
+[00:04:05] Priya Nair: One concern from data management. If we change criteria mid-study we need a pre-specified subgroup analysis for the patients enrolled under the old cutoff, otherwise the statisticians will push back.
+[00:04:20] Dr. Anita Rao: Agreed. Let's not submit anything until the DSMB has done its interim safety review on October 24. If the DSMB has no concerns, we submit right after.
+[00:04:34] Tom Becker: So the decision is to draft the amendment now but hold submission until after the DSMB review.
+[00:04:41] Dr. Anita Rao: Correct. Tom, can you draft protocol amendment version 3.1 with the LVEF change and Priya's subgroup analysis?
+[00:04:50] Tom Becker: Yes. I'll have version 3.1 drafted by October 20.
+[00:04:56] Dr. Anita Rao: Next item, the wearable data. Priya?
+[00:05:01] Priya Nair: We have a data completeness problem with the PulseTrack wearable. 18 percent of active patients have gaps longer than three days in their heart rate and activity data. Our protocol requires 80 percent wear time for the primary endpoint, so this directly threatens the analysis.
+[00:05:24] Dr. Anita Rao: Is it patients not wearing the device, or a technical problem?
+[00:05:29] Priya Nair: It looks technical. The device keeps recording, but the data never syncs to the server. The gaps are almost all on Android phones. I've opened ticket DM-4471 with PulseTrack.
+[00:05:46] Sofia Alvarez: From the patient side we're hearing the same thing. Several patients told our coordinators the app says "last synced four days ago" even though they wear the device every day.
+[00:06:01] Dr. Anita Rao: Priya, I'd like a root cause report on this, working with PulseTrack, by October 13.
+[00:06:08] Priya Nair: I'll get a root cause report done with PulseTrack by the 13th. The adherence app team should be involved because the sync runs through our app.
+[00:06:19] Sofia Alvarez: I'll bring it to our sprint planning on the 13th so engineering can pick it up.
+[00:06:26] Dr. Anita Rao: Last item. Sofia, you mentioned patient reminders.
+[00:06:31] Sofia Alvarez: Yes. Retention is good, but patients forget their weekly symptom check-in. Coordinators spend hours phoning people. I'd like to add automated SMS reminders through the adherence app.
+[00:06:48] Tom Becker: Fine in principle, but any text messages to trial participants must be approved by the IRB and must not contain health information. No diagnosis, no medication names.
+[00:07:01] Sofia Alvarez: Understood. I'll put together a patient reminder plan with the message wording and bring it to the app team, then Tom can route it to the IRB.
+[00:07:13] Dr. Anita Rao: Great. Open question I want us to come back to: if Cleveland is approved and both new sites activate, do we still need the amendment? I don't want to change the protocol if we don't have to.
+[00:07:28] Marcus Lee: My numbers say yes. Even with three extra sites we'd finish enrollment around June 2027 rather than March 2027 without the amendment.
+[00:07:40] Dr. Anita Rao: Let's revisit that at the next meeting with real feasibility data. We'll meet again on October 27. Thanks everyone.

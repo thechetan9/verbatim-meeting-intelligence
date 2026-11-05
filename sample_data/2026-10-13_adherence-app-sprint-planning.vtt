@@ -1,0 +1,117 @@
+WEBVTT
+
+NOTE
+Adherence App — Sprint 14 Planning — 13 October 2026
+Synthetic transcript created for demo and evaluation purposes. All people and data are fictional.
+
+1
+00:00:03.000 --> 00:00:14.500
+<v Sofia Alvarez>Hi all, welcome to sprint 14 planning for the adherence app. Three things today: SMS reminders, the Android sync bug from the CARDIA-2 steering committee, and the usability study.</v>
+
+2
+00:00:15.000 --> 00:00:22.000
+<v Daniel Kim>Before we start, quick status: sprint 13 closed with 31 of 34 story points done. The three left over are the medication history screen, which rolls into this sprint.</v>
+
+3
+00:00:23.000 --> 00:00:41.000
+<v Sofia Alvarez>Thanks Daniel. Let's start with reminders. Coordinators are spending hours calling patients who forget their weekly check-in. I want automated SMS reminders in the next release. The question is which provider we use.</v>
+
+4
+00:00:42.000 --> 00:01:05.000
+<v Daniel Kim>We looked at two options, Twilio and AWS SNS. Twilio has the nicer developer experience, delivery receipts and two-way messaging. SNS is more bare-bones but our whole backend already runs on AWS.</v>
+
+5
+00:01:06.000 --> 00:01:31.000
+<v Jonas Weber>From a compliance angle the key thing is the business associate agreement. We already have a signed BAA with AWS that covers SNS. With Twilio we would need a separate BAA, and they only sign one on specific enterprise plans. That's a legal review of six to eight weeks.</v>
+
+6
+00:01:32.000 --> 00:01:44.000
+<v Daniel Kim>Cost-wise SNS is also cheaper for us. Roughly 40 percent less per message at our volume, and no extra platform fee.</v>
+
+7
+00:01:45.000 --> 00:01:52.000
+<v Sofia Alvarez>Do we lose anything important with SNS?</v>
+
+8
+00:01:53.000 --> 00:02:08.000
+<v Daniel Kim>Two-way replies. With SNS patients can't text back "done". But for a reminder we don't actually need replies, they confirm in the app.</v>
+
+9
+00:02:09.000 --> 00:02:20.000
+<v Sofia Alvarez>Then let's decide: we go with AWS SNS for reminders and drop Twilio. The existing AWS BAA and the cost make it the clear choice for now.</v>
+
+10
+00:02:21.000 --> 00:02:42.000
+<v Jonas Weber>Agreed. One hard rule though. The SMS text must not contain any PHI. No diagnosis, no medication names, no trial name in the message body. Text messages sit on lock screens and shared phones.</v>
+
+11
+00:02:43.000 --> 00:02:58.000
+<v Sofia Alvarez>Yes, that matches what Tom said at the steering committee. So the message will be generic, something like "Time for your weekly check-in, open the app to continue." That's decided.</v>
+
+12
+00:02:59.000 --> 00:03:12.000
+<v Daniel Kim>I'll build the SNS reminder service. Ticket PRJ-2288. I can have it done by the end of the sprint, October 24.</v>
+
+13
+00:03:13.000 --> 00:03:26.000
+<v Jonas Weber>I'll verify that SNS is explicitly listed under our BAA and produce a data flow diagram for the reminder path. I'll get that done by October 16.</v>
+
+14
+00:03:27.000 --> 00:03:40.000
+<v Sofia Alvarez>Great. Next, the Android sync problem. Priya, you were going to look at the PulseTrack gaps?</v>
+
+15
+00:03:41.000 --> 00:04:10.000
+<v Priya Nair>Yes, root cause is found. It's not PulseTrack's device, it's our app. On Android 14 and later, battery optimization kills our background sync service when the phone is idle for more than a few hours. The device keeps buffering data, but it can only hold about three days, so anything older is lost. That explains the 18 percent of patients with gaps.</v>
+
+16
+00:04:11.000 --> 00:04:36.000
+<v Daniel Kim>That makes sense. The fix is to move the sync to WorkManager with a periodic job, and ask the user for a battery optimization exemption during onboarding with a clear explanation. I'd treat it as a priority bug, ticket PRJ-2291.</v>
+
+17
+00:04:37.000 --> 00:04:44.000
+<v Sofia Alvarez>How fast can we ship that?</v>
+
+18
+00:04:45.000 --> 00:04:56.000
+<v Daniel Kim>I can have the PRJ-2291 fix in a hotfix build by October 20.</v>
+
+19
+00:04:57.000 --> 00:05:12.000
+<v Priya Nair>Once it's out I'll watch the completeness numbers for two weeks and report back at the next steering committee.</v>
+
+20
+00:05:13.000 --> 00:05:22.000
+<v Sofia Alvarez>Perfect. Last topic, usability. Meera?</v>
+
+21
+00:05:23.000 --> 00:05:52.000
+<v Meera Iyer>Our participants are mostly over 65, and the current check-in screens were designed for younger users. Tap targets are 36 pixels, text doesn't scale with system font size, and two screens fail WCAG AA contrast. I want to run a moderated usability test with six patients aged 65 and older before the next release.</v>
+
+22
+00:05:53.000 --> 00:06:03.000
+<v Sofia Alvarez>When could you run it?</v>
+
+23
+00:06:04.000 --> 00:06:16.000
+<v Meera Iyer>I'll recruit the six participants through the coordinators and run the sessions on October 22.</v>
+
+24
+00:06:17.000 --> 00:06:36.000
+<v Daniel Kim>If the test finds serious issues, we won't have time to fix them and still ship version 1.2 on November 3. The release date is the problem.</v>
+
+25
+00:06:37.000 --> 00:06:58.000
+<v Sofia Alvarez>I'd rather ship something older patients can actually use. Let's move the version 1.2 launch from November 3 to November 17. That gives two weeks to fix what the usability test finds, and the SMS reminders ship in the same release.</v>
+
+26
+00:06:59.000 --> 00:07:06.000
+<v Daniel Kim>Works for me. November 17 it is.</v>
+
+27
+00:07:07.000 --> 00:07:22.000
+<v Jonas Weber>Open question for later: do we need to log every reminder we send for the trial audit trail? I'll check with Tom, but I suspect the answer is yes.</v>
+
+28
+00:07:23.000 --> 00:07:30.000
+<v Sofia Alvarez>Good catch. Let's close there. Thanks everyone.</v>
