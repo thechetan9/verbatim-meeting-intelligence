@@ -6,6 +6,7 @@ as the meeting is searchable; the API schedules it in the background.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 import time
@@ -57,6 +58,19 @@ def infer_title(content: str, filename: str) -> str:
     return re.sub(r"[_\-]+", " ", stem).strip().title() or "Untitled meeting"
 
 
+class DuplicateMeetingError(ValueError):
+    def __init__(self, existing: Meeting):
+        super().__init__(f'This file is already uploaded as "{existing.title}".')
+        self.existing = existing
+
+
+def content_fingerprint(data: str | bytes) -> str:
+    """Hash of the upload, ignoring line-ending and surrounding-whitespace differences."""
+    if isinstance(data, str):
+        data = data.replace("\r\n", "\n").strip().encode("utf-8")
+    return hashlib.sha256(data).hexdigest()
+
+
 class IngestionService:
     def __init__(
         self,
@@ -70,13 +84,25 @@ class IngestionService:
         self.extractor = extractor
         self.chunking = chunking or ChunkingConfig()
 
+    def check_duplicate(self, fingerprint: str) -> None:
+        existing = self.store.find_by_hash(fingerprint)
+        if existing:
+            raise DuplicateMeetingError(existing)
+
     def ingest(
-        self, content: str, filename: str, title: str | None = None, date: str | None = None
+        self,
+        content: str,
+        filename: str,
+        title: str | None = None,
+        date: str | None = None,
+        fingerprint: str | None = None,
     ) -> Meeting:
         if Path(filename).suffix.lower() not in ALLOWED_EXTENSIONS:
             raise TranscriptParseError(
                 f"Unsupported file type. Use one of: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
             )
+        fingerprint = fingerprint or content_fingerprint(content)
+        self.check_duplicate(fingerprint)
         started = time.perf_counter()
         parsed = parse_transcript(content, filename)
         meeting = Meeting(
@@ -95,7 +121,7 @@ class IngestionService:
             meeting.id, meeting.title, meeting.date, parsed.utterances, self.chunking
         )
         embeddings = self.embedder.embed_documents([c.embed_text for c in chunks])
-        self.store.add_meeting(meeting, parsed.utterances, chunks, embeddings)
+        self.store.add_meeting(meeting, parsed.utterances, chunks, embeddings, fingerprint)
         log_event(
             logger,
             "meeting.ingested",

@@ -10,6 +10,7 @@ from app.api.schemas import MeetingDetail, SamplesOut, TranscriptOut
 from app.container import Container
 from app.domain.models import Meeting
 from app.ingestion.parser import TranscriptParseError
+from app.ingestion.service import DuplicateMeetingError, content_fingerprint
 from app.ingestion.transcribe import AUDIO_MIME_TYPES, transcribe_audio
 from app.llm.base import LLMError
 
@@ -29,10 +30,19 @@ def _read_limited(upload: UploadFile, limit: int) -> bytes:
 
 
 def _ingest_and_schedule(
-    c: Container, content: str, filename: str, title: str | None, date: str | None
+    c: Container,
+    content: str,
+    filename: str,
+    title: str | None,
+    date: str | None,
+    fingerprint: str | None = None,
 ) -> Meeting:
     try:
-        meeting = c.ingestion.ingest(content, filename, title=title, date=date)
+        meeting = c.ingestion.ingest(
+            content, filename, title=title, date=date, fingerprint=fingerprint
+        )
+    except DuplicateMeetingError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except TranscriptParseError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     if c.ingestion.extractor:
@@ -61,6 +71,12 @@ def upload_meeting(
                 status.HTTP_503_SERVICE_UNAVAILABLE, "Audio transcription needs an LLM API key."
             )
         audio = _read_limited(file, c.settings.max_audio_bytes)
+        # Check before transcribing: a re-upload shouldn't cost another transcription call.
+        fingerprint = content_fingerprint(audio)
+        try:
+            c.ingestion.check_duplicate(fingerprint)
+        except DuplicateMeetingError as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
         try:
             content = transcribe_audio(c.llm, audio, AUDIO_MIME_TYPES[suffix])
         except LLMError as exc:
@@ -68,7 +84,12 @@ def upload_meeting(
                 status.HTTP_502_BAD_GATEWAY, f"Transcription failed: {exc}"
             ) from exc
         return _ingest_and_schedule(
-            c, content, f"{Path(filename).stem}.txt", title or Path(filename).stem, date
+            c,
+            content,
+            f"{Path(filename).stem}.txt",
+            title or Path(filename).stem,
+            date,
+            fingerprint,
         )
 
     raw = _read_limited(file, c.settings.max_upload_bytes)

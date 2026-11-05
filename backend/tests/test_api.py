@@ -106,3 +106,35 @@ def test_chat_without_llm_returns_503(settings):
     assert client.post("/api/chat", json={"question": "hi"}).status_code == 503
     r = _upload(client)
     assert r.json()["insights_status"] == "skipped"  # ingestion & search still work without a key
+
+
+def test_duplicate_upload_is_rejected_with_a_clear_message(client):
+    first = _upload(client)
+    assert first.status_code == 201
+    again = _upload(client, content=TRANSCRIPT.replace("\n", "\r\n") + "\n\n", name="copy.txt")
+    assert again.status_code == 409
+    assert "already uploaded" in again.json()["detail"] and "Weekly sync" in again.json()["detail"]
+    other = _upload(
+        client, content=TRANSCRIPT + "[00:04:00] Alice Chen: One more thing.", name="b.txt"
+    )
+    assert other.status_code == 201
+    assert len(client.get("/api/meetings").json()) == 2
+
+
+def test_old_database_without_hash_column_is_migrated(tmp_path):
+    import sqlite3
+
+    from app.retrieval.store import MeetingStore
+
+    db = tmp_path / "old.db"
+    con = sqlite3.connect(db)
+    con.execute(
+        "CREATE TABLE meetings (id TEXT PRIMARY KEY, title TEXT NOT NULL, date TEXT, "
+        "source_filename TEXT NOT NULL, format TEXT NOT NULL, duration_s REAL NOT NULL, "
+        "speakers TEXT NOT NULL, utterance_count INTEGER NOT NULL, created_at TEXT NOT NULL, "
+        "insights_status TEXT NOT NULL, insights_error TEXT, insights TEXT)"
+    )
+    con.commit()
+    con.close()
+    store = MeetingStore(db)
+    assert store.find_by_hash("abc") is None  # column added, query works

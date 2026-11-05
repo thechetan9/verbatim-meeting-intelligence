@@ -19,7 +19,8 @@ from tests.conftest import TRANSCRIPT
 
 
 def _ingest(container, name="2026-01-05_sync.txt"):
-    m = container.ingestion.ingest(TRANSCRIPT, name)
+    # Unique content per file: identical uploads are rejected as duplicates.
+    m = container.ingestion.ingest(f"{TRANSCRIPT}[00:09:00] Alice Chen: End of {name}.", name)
     container.ingestion.generate_insights(m.id)
     return m
 

@@ -43,7 +43,8 @@ CREATE TABLE IF NOT EXISTS meetings (
     created_at TEXT NOT NULL,
     insights_status TEXT NOT NULL,
     insights_error TEXT,
-    insights TEXT
+    insights TEXT,
+    content_hash TEXT
 );
 CREATE TABLE IF NOT EXISTS utterances (
     meeting_id TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
@@ -104,6 +105,15 @@ class MeetingStore:
         if self.path != ":memory:":
             self._conn.execute("PRAGMA journal_mode = WAL")
         self._conn.executescript(_SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Additive migrations for databases created by older versions."""
+        cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(meetings)")}
+        if "content_hash" not in cols:
+            self._conn.execute("ALTER TABLE meetings ADD COLUMN content_hash TEXT")
+        self._conn.execute("CREATE INDEX IF NOT EXISTS meetings_hash ON meetings(content_hash)")
+        self._conn.commit()
 
     @contextmanager
     def _tx(self) -> Iterator[sqlite3.Connection]:
@@ -118,12 +128,13 @@ class MeetingStore:
         utterances: list[Utterance],
         chunks: list[Chunk],
         embeddings: np.ndarray,
+        content_hash: str | None = None,
     ) -> None:
         if len(chunks) != len(embeddings):
             raise ValueError("chunks and embeddings must align")
         with self._tx() as c:
             c.execute(
-                "INSERT INTO meetings VALUES (?,?,?,?,?,?,?,?,?,?,?,NULL)",
+                "INSERT INTO meetings VALUES (?,?,?,?,?,?,?,?,?,?,?,NULL,?)",
                 (
                     meeting.id,
                     meeting.title,
@@ -136,6 +147,7 @@ class MeetingStore:
                     meeting.created_at,
                     meeting.insights_status.value,
                     meeting.insights_error,
+                    content_hash,
                 ),
             )
             c.executemany(
@@ -217,6 +229,11 @@ class MeetingStore:
     def get_meeting(self, meeting_id: str) -> Meeting | None:
         with self._tx() as c:
             r = c.execute("SELECT * FROM meetings WHERE id=?", (meeting_id,)).fetchone()
+        return self._row_to_meeting(r) if r else None
+
+    def find_by_hash(self, content_hash: str) -> Meeting | None:
+        with self._tx() as c:
+            r = c.execute("SELECT * FROM meetings WHERE content_hash=?", (content_hash,)).fetchone()
         return self._row_to_meeting(r) if r else None
 
     def find_by_filename(self, filename: str) -> Meeting | None:
