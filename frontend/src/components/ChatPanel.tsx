@@ -128,7 +128,7 @@ export function ChatPanel(p: Props) {
             )}
           </div>
           <div className="mt-1.5 flex items-center justify-between px-1 text-[11px] text-faint">
-            <span>
+            <span className="hidden sm:inline">
               <Kbd>Enter</Kbd> to send · <Kbd>Shift</Kbd>+<Kbd>Enter</Kbd> new line · answers cite the exact moment
             </span>
             {p.messages.length > 0 && (
