@@ -15,6 +15,11 @@ the optional voice-to-transcript bonus.
   *grounded*, *not covered* or *unverified* based on a post-generation citation check.
 - **Insights per meeting.** Decisions, action items (owner, due date) and open questions are extracted
   on upload, each linked to the transcript line that supports it.
+- **Action-item tracker.** Every task from every meeting grouped by person, with due dates, a link
+  to the moment it was assigned, and done/open ticks. Owners are resolved across meetings
+  ("Marcus", "Marcus Lee" and "Dr. Rao" group correctly).
+- **Follow-up suggestions** under each answer, and **export** of any meeting's notes as Markdown
+  (copy or download) for email, Slack or a ticket.
 - **People view.** Each participant's share of the talking, turns and action items; click anyone
   to read only what they said.
 - **See the agent work.** Tool calls, timings, tokens and cost for every answer. Conversations
@@ -208,6 +213,7 @@ disabled so it always ends with an answer.
 | Off-topic / medical advice | system prompt limits scope to the loaded meetings; reports what was said, no advice |
 | Runaway agent | 4-step budget, 300-char tool queries, top-k caps |
 | Bad uploads | extension allow-list, 2 MB text / 20 MB audio limits, UTF-8 check, parse validation with a clear error |
+| Duplicate uploads | content hash per upload; a re-upload returns 409 "already uploaded as …" (for audio, before paying for transcription) |
 
 #### Observability
 
@@ -224,10 +230,10 @@ disabled so it always ends with an answer.
 
 ```bash
 cd backend
-uv run pytest                          # 58 tests, offline (fake LLM, hashing embedder)
+uv run pytest                          # 66 tests, offline (fake LLM, hashing embedder)
 uv run python -m evals.retrieval_eval  # offline, runs in CI as a gate
 uv run python -m evals.answer_eval --model gemini-3.5-flash  # end-to-end, a few cents
-cd ../frontend && npm test             # SSE parser, citation linking, formatting
+cd ../frontend && npm test             # 16 tests: SSE parser, citations, notes export, tracker, storage
 ```
 
 **Eval set:** [`backend/evals/dataset.yaml`](backend/evals/dataset.yaml) — 28 questions written the way
@@ -356,8 +362,9 @@ repeated questions.
 - Layered architecture with dependency inversion; one composition root (`container.py`).
 - 12-factor config: env vars only (`app/config.py`), `.env` git-ignored, `.env.example` provided.
 - Typed everywhere: mypy on the backend, strict TypeScript on the frontend; pydantic at boundaries.
-- Tests: 58 backend (parser formats, chunker invariants, retrieval + RRF, FTS query sanitising,
-  guardrails, agent loop with a scripted LLM, API incl. SSE and upload validation) and 8 frontend.
+- Tests: 66 backend (parser formats, chunker invariants, retrieval + RRF, FTS query sanitising,
+  guardrails, agent loop with a scripted LLM, tracker, follow-ups, duplicate uploads, API incl. SSE
+  and upload validation) and 16 frontend.
   No test calls a real LLM.
 - Lint/format: ruff, ESLint; complexity kept low (SonarLint clean in the editor).
 - CI: lint, types, tests, retrieval eval gate, frontend build, Docker build.
@@ -483,6 +490,8 @@ the decisions, the order of work and the definition of "done" were not left to t
 | Insights extracted per meeting | Hover a citation |
 |---|---|
 | ![Insights panel: summary, decisions, action items with owners and due dates](docs/screenshots/insights.png) | ![Citation hover card with speaker, timestamp and quote](docs/screenshots/citation-hover.png) |
+| **Action items across all meetings, by person** | **Suggested follow-up questions** |
+| ![Action-item tracker grouped by owner](docs/screenshots/action-items.png) | ![Follow-up question chips under an answer](docs/screenshots/suggestions.png) |
 | **People: share of talk, turns, action items** | **Click a person to read only their lines** |
 | ![People section with talk share per participant](docs/screenshots/people.png) | ![Transcript filtered to one speaker](docs/screenshots/person-filter.png) |
 | **Refuses when the meetings don't cover it** | **Mobile layout** |
