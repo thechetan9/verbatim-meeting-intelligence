@@ -1,12 +1,13 @@
 "use client";
 
-import { CalendarDays, CircleHelp, Clock, Gavel, ListTodo, RefreshCw, Users, X } from "lucide-react";
+import { CalendarDays, CircleHelp, Clock, Gavel, ListTodo, MessagesSquare, RefreshCw, Users, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { SpeakerAvatar, Spinner, speakerTextColor } from "@/components/ui";
 import { api } from "@/lib/api";
-import { formatDate, formatDuration, formatTs } from "@/lib/format";
-import type { Focus, Meeting, MeetingDetail, Utterance } from "@/lib/types";
+import { formatDate, formatDuration, formatTs, plural, speakerHue } from "@/lib/format";
+import { actionsFor, speakerStats, type SpeakerStat } from "@/lib/speakers";
+import type { ActionItem, Focus, Meeting, MeetingDetail, Utterance } from "@/lib/types";
 
 type Tab = "insights" | "transcript";
 
@@ -18,6 +19,8 @@ interface Props {
   readonly onTab: (t: Tab) => void;
   readonly onSelect: (id: string) => void;
   readonly onJump: (meetingId: string, idx: number) => void;
+  readonly scope: string[];
+  readonly onAskAbout: (meetingId: string) => void;
   readonly onClose?: () => void;
 }
 
@@ -26,6 +29,12 @@ export function ContextPanel(p: Props) {
   const [detail, setDetail] = useState<MeetingDetail | null>(null);
   const [utterances, setUtterances] = useState<Utterance[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // "Show me what this person said": tied to the meeting and to the current citation focus,
+  // so opening another meeting or jumping to a citation clears it (derived, no effect).
+  const [person, setPerson] = useState<{ meetingId: string; name: string; nonce?: number } | null>(null);
+  const speaker =
+    person && person.meetingId === meeting?.id && person.nonce === p.focus?.nonce ? person.name : null;
+  const stats = useMemo(() => speakerStats(utterances ?? []), [utterances]);
 
   // Load detail + transcript when the meeting changes, and again when its insights finish.
   useEffect(() => {
@@ -58,6 +67,11 @@ export function ContextPanel(p: Props) {
   }
 
   const ready = detail?.meeting.id === meeting.id;
+  const scopedHere = p.scope.length === 1 && p.scope[0] === meeting.id;
+  const showPerson = (name: string) => {
+    setPerson(speaker === name ? null : { meetingId: meeting.id, name, nonce: p.focus?.nonce });
+    p.onTab("transcript");
+  };
   return (
     <aside className="flex h-full min-h-0 flex-col border-l border-border bg-panel">
       <header className="border-b border-border p-3">
@@ -91,12 +105,29 @@ export function ContextPanel(p: Props) {
             <Users className="h-3 w-3" /> {meeting.speakers.length} people
           </span>
         </div>
-        <div className="mt-2 flex -space-x-1">
-          {meeting.speakers.map((s) => (
-            <span key={s} className="rounded-full ring-2 ring-panel">
-              <SpeakerAvatar name={s} size={26} />
-            </span>
-          ))}
+        <div className="mt-2 flex items-center gap-2">
+          <div className="flex flex-1 flex-wrap gap-1" aria-label="Participants">
+            {meeting.speakers.map((s) => (
+              <button
+                key={s}
+                onClick={() => showPerson(s)}
+                title={speaker === s ? "Show everyone" : `Show what ${s} said`}
+                aria-pressed={speaker === s}
+                className={`rounded-full ring-2 transition hover:scale-110 ${speaker === s ? "ring-accent" : "ring-transparent"}`}
+              >
+                <SpeakerAvatar name={s} size={26} />
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => p.onAskAbout(meeting.id)}
+            disabled={scopedHere}
+            title="Limit the chat to this meeting"
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] font-medium text-muted transition hover:border-accent hover:text-accent disabled:border-accent-soft disabled:bg-accent-soft disabled:text-accent"
+          >
+            <MessagesSquare className="h-3.5 w-3.5" />
+            {scopedHere ? "Chat scoped here" : "Ask about this"}
+          </button>
         </div>
         <div role="tablist" className="mt-3 grid grid-cols-2 rounded-lg bg-panel-2 p-0.5 text-xs font-medium">
           {(["insights", "transcript"] as const).map((t) => (
@@ -121,7 +152,14 @@ export function ContextPanel(p: Props) {
           </div>
         )}
         {ready && p.tab === "insights" && (
-          <InsightsView meeting={meeting} detail={detail} utterances={utterances ?? []} onJump={p.onJump} />
+          <InsightsView
+            meeting={meeting}
+            detail={detail}
+            utterances={utterances ?? []}
+            stats={stats}
+            onJump={p.onJump}
+            onPerson={showPerson}
+          />
         )}
         {ready && p.tab === "transcript" && (
           <TranscriptView
@@ -129,6 +167,8 @@ export function ContextPanel(p: Props) {
             utterances={utterances ?? []}
             topics={detail?.insights?.topics ?? []}
             focus={p.focus?.meetingId === meeting.id ? p.focus : null}
+            speaker={speaker}
+            onClearSpeaker={() => setPerson(null)}
           />
         )}
       </div>
@@ -142,17 +182,22 @@ function InsightsView({
   meeting,
   detail,
   utterances,
+  stats,
   onJump,
+  onPerson,
 }: {
   readonly meeting: Meeting;
   readonly detail: MeetingDetail;
   readonly utterances: Utterance[];
+  readonly stats: SpeakerStat[];
   readonly onJump: (meetingId: string, idx: number) => void;
+  readonly onPerson: (name: string) => void;
 }) {
   const [retrying, setRetrying] = useState(false);
   const ts = useMemo(() => new Map(utterances.map((u) => [u.idx, formatTs(u.start_s)])), [utterances]);
   const ins = detail.insights;
   const status = meeting.insights_status;
+  const people = <PeopleSection stats={stats} actions={ins?.action_items ?? []} onPerson={onPerson} />;
 
   const Evidence = ({ idx }: { readonly idx: number[] }) => (
     <span className="ml-1 inline-flex flex-wrap gap-1 align-middle">
@@ -178,12 +223,14 @@ function InsightsView({
         {[80, 95, 60, 88].map((w) => (
           <div key={w} className="h-3 animate-pulse rounded bg-panel-2" style={{ width: `${w}%` }} />
         ))}
+        <div className="pt-2">{people}</div>
       </div>
     );
   }
   if (status === "skipped" || (status === "failed" && !ins)) {
     return (
-      <div className="m-3 rounded-xl bg-panel-2 p-4 text-sm">
+      <div className="space-y-5 p-4">
+      <div className="rounded-xl bg-panel-2 p-4 text-sm">
         {status === "skipped" ? (
           <p className="text-muted">Insights need an LLM. Set GEMINI_API_KEY on the backend; search still works without it.</p>
         ) : (
@@ -203,6 +250,8 @@ function InsightsView({
           </>
         )}
       </div>
+      {people}
+      </div>
     );
   }
   if (!ins) return null;
@@ -213,6 +262,8 @@ function InsightsView({
         <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">Summary</h3>
         <p className="text-sm leading-relaxed">{ins.summary}</p>
       </section>
+
+      {people}
 
       <Section icon={<Gavel className="h-3.5 w-3.5" />} title="Decisions" count={ins.decisions.length}>
         {ins.decisions.map((d) => (
@@ -254,6 +305,52 @@ function InsightsView({
   );
 }
 
+function PeopleSection({
+  stats,
+  actions,
+  onPerson,
+}: {
+  readonly stats: SpeakerStat[];
+  readonly actions: ActionItem[];
+  readonly onPerson: (name: string) => void;
+}) {
+  return (
+    <Section icon={<Users className="h-3.5 w-3.5" />} title="People" count={stats.length}>
+      {stats.map((s) => {
+        const owned = actionsFor(s.name, actions).length;
+        const pct = Math.round(s.share * 100);
+        return (
+          <li key={s.name}>
+            <button
+              onClick={() => onPerson(s.name)}
+              title={`Show what ${s.name} said`}
+              className="flex w-full items-center gap-2.5 rounded-lg p-1.5 text-left transition hover:bg-panel-2"
+            >
+              <SpeakerAvatar name={s.name} size={28} />
+              <span className="min-w-0 flex-1">
+                <span className="flex items-baseline justify-between gap-2 text-sm">
+                  <span className="truncate font-medium">{s.name}</span>
+                  <span className="shrink-0 text-[11px] text-faint">{pct}% of talk</span>
+                </span>
+                <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-panel-2">
+                  <span
+                    className="block h-full rounded-full"
+                    style={{ width: `${Math.max(pct, 3)}%`, background: `hsl(${speakerHue(s.name)} 65% 50%)` }}
+                  />
+                </span>
+                <span className="mt-1 block text-[11px] text-muted">
+                  {plural(s.turns, "turn")}
+                  {owned > 0 && ` · ${plural(owned, "action item")}`}
+                </span>
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </Section>
+  );
+}
+
 function Section({
   icon,
   title,
@@ -282,22 +379,33 @@ function TranscriptView({
   utterances,
   topics,
   focus,
+  speaker,
+  onClearSpeaker,
 }: {
   readonly meetingId: string;
   readonly utterances: Utterance[];
   readonly topics: { title: string; start_idx: number }[];
   readonly focus: Focus | null;
+  readonly speaker: string | null;
+  readonly onClearSpeaker: () => void;
 }) {
   const refs = useRef(new Map<number, HTMLLIElement>());
+  const top = useRef<HTMLDivElement>(null);
   // The filter belongs to the current focus: jumping to a citation clears it (derived, no effect).
   const [filterState, setFilterState] = useState<{ text: string; nonce?: number }>({ text: "" });
   const filter = filterState.nonce === focus?.nonce ? filterState.text : "";
   const setFilter = (text: string) => setFilterState({ text, nonce: focus?.nonce });
   const topicAt = useMemo(() => new Map(topics.map((t) => [t.start_idx, t.title])), [topics]);
   const q = filter.trim().toLowerCase();
+  const bySpeaker = speaker ? utterances.filter((u) => u.speaker === speaker) : utterances;
   const shown = q
-    ? utterances.filter((u) => u.text.toLowerCase().includes(q) || u.speaker.toLowerCase().includes(q))
-    : utterances;
+    ? bySpeaker.filter((u) => u.text.toLowerCase().includes(q) || u.speaker.toLowerCase().includes(q))
+    : bySpeaker;
+
+  // Picking a person starts their lines from the top.
+  useEffect(() => {
+    if (speaker) top.current?.scrollIntoView({ block: "start" });
+  }, [speaker]);
 
   useEffect(() => {
     if (!focus) return;
@@ -309,8 +417,19 @@ function TranscriptView({
   }, [focus, meetingId]);
 
   return (
-    <div>
+    <div ref={top}>
       <div className="sticky top-0 z-10 border-b border-border bg-panel/95 p-2 backdrop-blur">
+        {speaker && (
+          <div className="mb-2 flex items-center gap-2 rounded-lg bg-accent-soft px-2.5 py-1.5 text-xs text-accent">
+            <SpeakerAvatar name={speaker} size={18} />
+            <span className="min-w-0 flex-1 truncate">
+              Only <strong>{speaker}</strong> · {plural(bySpeaker.length, "line")}
+            </span>
+            <button onClick={onClearSpeaker} className="rounded p-0.5 hover:bg-panel" aria-label="Show everyone">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
@@ -321,7 +440,7 @@ function TranscriptView({
       <ol className="space-y-0.5 p-2">
         {shown.map((u) => {
           const focused = focus?.utteranceIdx === u.idx;
-          const topic = !q && topicAt.get(u.idx);
+          const topic = !q && !speaker && topicAt.get(u.idx);
           return (
             <li
               key={u.idx}
