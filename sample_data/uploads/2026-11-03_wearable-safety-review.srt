@@ -1,0 +1,47 @@
+1
+00:00:02,000 --> 00:00:11,500
+Dr. Hannah Brooks: Thanks for joining at short notice. This is a safety review for the CARDIA-2 wearable. We've had five reports of skin irritation from the PulseTrack strap in the last two weeks.
+
+2
+00:00:12,000 --> 00:00:24,000
+Priya Nair: I pulled the data before the call. All five are from sites using the original silicone strap. None of the patients on the fabric strap reported anything.
+
+3
+00:00:24,500 --> 00:00:36,000
+Dr. Hannah Brooks: Severity matters most here. Four were mild redness that cleared within two days of removing the device. One patient at Site 7 had a blistering rash and saw a dermatologist.
+
+4
+00:00:36,500 --> 00:00:47,000
+Tom Becker: The blistering case meets the definition of an adverse event related to the device, so it has to be reported to the IRB within ten working days. I'll file that report by November 14.
+
+5
+00:00:47,500 --> 00:00:58,000
+Sofia Alvarez: Do we pause wearable use? Patients are already worried after the sync problems, and I don't want people taking the device off for good.
+
+6
+00:00:58,500 --> 00:01:12,000
+Dr. Hannah Brooks: No pause. The rate is low and the reactions are mild except one. Decision: we switch every patient to the hypoallergenic fabric strap, starting with the sites that reported cases.
+
+7
+00:01:12,500 --> 00:01:22,000
+Priya Nair: PulseTrack confirmed they can ship fabric straps for all 131 enrolled patients. Delivery to the sites is about ten days.
+
+8
+00:01:22,500 --> 00:01:33,000
+Dr. Hannah Brooks: Good. Priya, please track strap replacements site by site on the data completeness dashboard you already built.
+
+9
+00:01:33,500 --> 00:01:40,000
+Priya Nair: Will do. I'll add a strap status column to the dashboard by November 10.
+
+10
+00:01:40,500 --> 00:01:55,000
+Sofia Alvarez: I'll send a short patient message through the app explaining the new strap and how to wear it. No health details in the text, same rule as the SMS reminders. I'll have the wording ready by November 7.
+
+11
+00:01:55,500 --> 00:02:06,000
+Tom Becker: One open question: does switching the strap count as a change to the device? If it does, we may need to notify the FDA, not just the IRB. I'll check with the manufacturer.
+
+12
+00:02:06,500 --> 00:02:14,000
+Dr. Hannah Brooks: Let's get an answer on that before the steering committee on November 24. Thanks everyone.

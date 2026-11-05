@@ -92,9 +92,14 @@ Then ask Claude Code e.g. "using verbatim, what did we decide about SMS reminder
 `Name (00:01:23): text`, two-line "Name  00:01:23 ⏎ text" (Otter style), WebVTT with `<v Name>`
 tags, and SRT with `Name:` prefixes. Examples in [`sample_data/`](sample_data).
 
-**Try the voice bonus:** upload [`sample_data/audio/2026-11-05_patient-portal-launch-sync.m4a`](sample_data/audio)
-(a 30-second, two-speaker clip). It is transcribed with speaker names and timestamps, then indexed
-and analysed like any other meeting. Audio formats: mp3, wav, m4a, aac, ogg, flac, webm (≤ 20 MB).
+**Files to try uploading** ([`sample_data/uploads/`](sample_data/uploads)), not loaded by the button:
+
+- `2026-11-03_wearable-safety-review.srt`: a fifth meeting in SRT format. It continues the story
+  (a safety issue with the trial wearable, new action items for Priya and Sofia), so after uploading
+  it, cross-meeting answers change, e.g. "What does Priya Nair own across all meetings?".
+- `2026-11-05_patient-portal-launch-sync.m4a`: a 30-second, two-speaker recording for the voice
+  bonus. It is transcribed with speaker names and timestamps, then indexed and analysed like any
+  other meeting. Audio formats: mp3, wav, m4a, aac, ogg, flac, webm (≤ 20 MB).
 
 ---
 
@@ -216,7 +221,7 @@ disabled so it always ends with an answer.
 
 ```bash
 cd backend
-uv run pytest                          # 54 tests, offline (fake LLM, hashing embedder)
+uv run pytest                          # 58 tests, offline (fake LLM, hashing embedder)
 uv run python -m evals.retrieval_eval  # offline, runs in CI as a gate
 uv run python -m evals.answer_eval --model gemini-3.5-flash  # end-to-end, a few cents
 cd ../frontend && npm test             # SSE parser, citation linking, formatting
@@ -348,7 +353,7 @@ repeated questions.
 - Layered architecture with dependency inversion; one composition root (`container.py`).
 - 12-factor config: env vars only (`app/config.py`), `.env` git-ignored, `.env.example` provided.
 - Typed everywhere: mypy on the backend, strict TypeScript on the frontend; pydantic at boundaries.
-- Tests: 54 backend (parser formats, chunker invariants, retrieval + RRF, FTS query sanitising,
+- Tests: 58 backend (parser formats, chunker invariants, retrieval + RRF, FTS query sanitising,
   guardrails, agent loop with a scripted LLM, API incl. SSE and upload validation) and 8 frontend.
   No test calls a real LLM.
 - Lint/format: ruff, ESLint; complexity kept low (SonarLint clean in the editor).
@@ -356,13 +361,19 @@ repeated questions.
 - Containers: multi-stage builds, non-root users, healthcheck, embedding model baked in (offline start).
 - Security basics: upload limits and allow-list, FTS query sanitising (no query-syntax injection),
   CORS allow-list, no secrets logged, pinned dependency versions.
+- Dependency vulnerability audits in CI (`pip-audit` and `npm audit` on production dependencies).
+  This is why the frontend is on **Next.js 16.4.2 / React 19.3.1**: Next 15.x bundles a `postcss`
+  version with a high-severity advisory, fixed only in 16.x. Versions are pinned to releases at least
+  two weeks old (supply-chain hygiene). One moderate advisory remains in lint-only tooling
+  (`minimatch` under `typescript-eslint`); the only fix is a 9-day-old new major, so I'm waiting for
+  the upstream bump rather than forcing it into a dev tool that never ships.
 
 #### Skipped (deliberately, for time)
 
 - Authentication, authorization and rate limiting — the API is open; it's a local demo.
 - DB migrations (schema is created on start-up); would use Alembic with Postgres.
 - Browser end-to-end tests (Playwright) and React component tests.
-- SAST/dependency scanning in CI (CodeQL, Dependabot) — quick to add.
+- SAST (CodeQL) and automated dependency update PRs (Dependabot) — quick to add.
 - OpenTelemetry export (spans are recorded and logged, not exported).
 - A proper job queue for insight extraction (in-process thread pool today).
 
@@ -476,8 +487,8 @@ the decisions, the order of work and the definition of "done" were not left to t
 
 ```
 backend/            FastAPI service, evals, tests, Dockerfile
-frontend/           Next.js 15 app (React 19, Tailwind 4)
-sample_data/        4 synthetic meetings (txt in 3 layouts, WebVTT) + a sample audio clip
+frontend/           Next.js 16 app (React 19.3, Tailwind 4)
+sample_data/        4 synthetic meetings (txt in 3 layouts, WebVTT) + uploads/ (SRT meeting, audio clip)
 docs/DECISIONS.md   decision log with measurements
 CLAUDE.md, .claude/ instructions and commands for AI coding assistants
 docker-compose.yml  one-command local run
