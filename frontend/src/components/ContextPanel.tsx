@@ -31,12 +31,12 @@ export function ContextPanel(p: Props) {
   useEffect(() => {
     if (!p.activeId) return;
     let cancelled = false;
-    setError(null);
     Promise.all([api.getMeeting(p.activeId), api.getTranscript(p.activeId)])
       .then(([d, t]) => {
         if (cancelled) return;
         setDetail(d);
         setUtterances(t.utterances);
+        setError(null);
       })
       .catch((e: unknown) => !cancelled && setError(e instanceof Error ? e.message : "Failed to load"));
     return () => {
@@ -289,7 +289,10 @@ function TranscriptView({
   readonly focus: Focus | null;
 }) {
   const refs = useRef(new Map<number, HTMLLIElement>());
-  const [filter, setFilter] = useState("");
+  // The filter belongs to the current focus: jumping to a citation clears it (derived, no effect).
+  const [filterState, setFilterState] = useState<{ text: string; nonce?: number }>({ text: "" });
+  const filter = filterState.nonce === focus?.nonce ? filterState.text : "";
+  const setFilter = (text: string) => setFilterState({ text, nonce: focus?.nonce });
   const topicAt = useMemo(() => new Map(topics.map((t) => [t.start_idx, t.title])), [topics]);
   const q = filter.trim().toLowerCase();
   const shown = q
@@ -298,7 +301,6 @@ function TranscriptView({
 
   useEffect(() => {
     if (!focus) return;
-    setFilter("");
     // Wait a frame so the (unfiltered) list is rendered before scrolling.
     const id = requestAnimationFrame(() =>
       refs.current.get(focus.utteranceIdx)?.scrollIntoView({ behavior: "smooth", block: "center" }),

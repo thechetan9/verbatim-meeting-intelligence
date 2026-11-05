@@ -16,23 +16,25 @@ type Drawer = "meetings" | "context" | null;
 export default function Home() {
   const { meetings, loading, error, refresh } = useMeetings();
   const [health, setHealth] = useState<Health | null>(null);
-  const [scope, setScope] = useState<string[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [selectedScope, setScope] = useState<string[]>([]);
+  const [selectedId, setActiveId] = useState<string | null>(null);
   const [tab, setTab] = useState<"insights" | "transcript">("insights");
   const [focus, setFocus] = useState<Focus | null>(null);
   const [drawer, setDrawer] = useState<Drawer>(null);
+
+  // Derived during render (not synced in an effect): selections stay valid as meetings are
+  // added or deleted, and the first meeting is shown when nothing is selected.
+  const exists = (id: string) => meetings.some((m) => m.id === id);
+  const scope = selectedScope.filter(exists);
+  const activeId = selectedId && exists(selectedId) ? selectedId : (meetings[0]?.id ?? null);
   const chat = useChat(scope);
 
   useEffect(() => {
-    api.health().then(setHealth).catch(() => setHealth(null));
+    api
+      .health()
+      .then(setHealth)
+      .catch(() => setHealth(null));
   }, [meetings.length]);
-
-  // Keep selection valid as meetings are added/removed.
-  useEffect(() => {
-    if (activeId && !meetings.some((m) => m.id === activeId)) setActiveId(null);
-    if (!activeId && meetings.length) setActiveId(meetings[0].id);
-    setScope((s) => s.filter((id) => meetings.some((m) => m.id === id)));
-  }, [meetings, activeId]);
 
   const jump = useCallback((meetingId: string, utteranceIdx: number) => {
     setActiveId(meetingId);

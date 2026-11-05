@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { api } from "@/lib/api";
 import type { Meeting } from "@/lib/types";
@@ -10,31 +10,38 @@ export function useMeetings() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [loadedAt, setLoadedAt] = useState(0); // bumps after every load, so polling re-arms
 
-  const refresh = useCallback(async () => {
-    if (timer.current) clearTimeout(timer.current);
-    try {
-      const list = await api.listMeetings();
-      setMeetings(list);
-      setError(null);
-      if (list.some((m) => m.insights_status === "pending")) {
-        timer.current = setTimeout(refresh, 2000);
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not reach the API");
-      timer.current = setTimeout(refresh, 5000);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // State is only updated in promise callbacks, never synchronously inside an effect.
+  const refresh = useCallback(
+    () =>
+      api
+        .listMeetings()
+        .then(
+          (list) => {
+            setMeetings(list);
+            setError(null);
+          },
+          (e: unknown) => setError(e instanceof Error ? e.message : "Could not reach the API"),
+        )
+        .finally(() => {
+          setLoading(false);
+          setLoadedAt(Date.now());
+        }),
+    [],
+  );
 
   useEffect(() => {
-    refresh();
-    return () => {
-      if (timer.current) clearTimeout(timer.current);
-    };
+    void refresh();
   }, [refresh]);
+
+  // Poll every 2 s while insights are pending; retry every 5 s while the API is unreachable.
+  const pending = meetings.some((m) => m.insights_status === "pending");
+  useEffect(() => {
+    if (!loadedAt || (!pending && !error)) return;
+    const timer = setTimeout(() => void refresh(), error ? 5000 : 2000);
+    return () => clearTimeout(timer);
+  }, [loadedAt, pending, error, refresh]);
 
   return { meetings, loading, error, refresh };
 }
